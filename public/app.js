@@ -118,7 +118,7 @@ $('generate').onclick=async()=>{
     let warnings=[];
     if($('productUrl').value.trim()) {
       if(!$('productUrl').reportValidity())return;
-      $('generate').textContent='↓ Récupération du produit AliExpress…';
+      $('generate').textContent='↓ Chargement de l’annonce dans le navigateur…';
       const imported=await api('import-url',{url:$('productUrl').value.trim()});
       $('raw').value=JSON.stringify(imported.source); warnings=imported.warnings || [];
       $('generate').textContent='✦ Création de votre fiche…';

@@ -1,4 +1,5 @@
 import { InputError, parseImport } from './listing.js';
+import { renderProduct } from './browser-import.js';
 
 const hosts = new Set(['aliexpress.com','www.aliexpress.com','fr.aliexpress.com','m.aliexpress.com','aliexpress.us','www.aliexpress.us']);
 export function productUrl(value) {
@@ -50,7 +51,7 @@ async function limitedText(response,max=3000000) {
   finally{await reader.cancel();}
   return Buffer.concat(chunks).toString('utf8');
 }
-export async function importUrl(value,env=process.env,request=fetch) {
+export async function importUrl(value,env=process.env,request=fetch,browserImport=renderProduct) {
   const url=productUrl(value);
   try {
     // Optional operator-configured extractor: never take its URL or key from the browser.
@@ -63,6 +64,8 @@ export async function importUrl(value,env=process.env,request=fetch) {
       const source=parseImport(JSON.stringify(data.product || data));
       source.sourceUrl=url.href;return {source,method:'provider',warnings:source.cost===null?['Prix absent : renseignez le coût fournisseur.']:[]};
     }
+    // Default to a real JavaScript-capable browser; metadata mode is opt-in.
+    if(env.ALIEXPRESS_IMPORT_MODE!=='metadata')return await browserImport(url,env,{extractProduct});
     let current=url;
     for(let redirects=0;redirects<4;redirects++) {
       const response=await request(current,{redirect:'manual',signal:AbortSignal.timeout(20000),headers:{Accept:'text/html','Accept-Language':'fr-FR,fr;q=0.9,en;q=0.8','User-Agent':'DropStudio/1.0 (product metadata importer)'}});

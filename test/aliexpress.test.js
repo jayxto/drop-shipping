@@ -14,10 +14,10 @@ test('extraction des métadonnées produit et refus des pages de login',()=>{
   assert.throws(()=>extractProduct('<meta property="og:title" content="Security check">',url),/ne fournit pas/);
 });
 test('import URL serveur, redirections externes bloquées sans les suivre',async()=>{
-  const imported=await importUrl(url,{},async()=>new Response(html));assert.equal(imported.source.cost,8.5);assert.equal(imported.method,'metadata');
+  const imported=await importUrl(url,{ALIEXPRESS_IMPORT_MODE:'metadata'},async()=>new Response(html));assert.equal(imported.source.cost,8.5);assert.equal(imported.method,'metadata');
   let count=0;
-  await assert.rejects(()=>importUrl(url,{},async()=>{count++;return new Response(null,{status:302,headers:{location:'https://127.0.0.1/private'}});}),/lien complet/);assert.equal(count,1);
-  await assert.rejects(()=>importUrl(url,{},async()=>new Response('blocked',{status:403})),/bloque/);
+  await assert.rejects(()=>importUrl(url,{ALIEXPRESS_IMPORT_MODE:'metadata'},async()=>{count++;return new Response(null,{status:302,headers:{location:'https://127.0.0.1/private'}});}),/lien complet/);assert.equal(count,1);
+  await assert.rejects(()=>importUrl(url,{ALIEXPRESS_IMPORT_MODE:'metadata'},async()=>new Response('blocked',{status:403})),/bloque/);
 });
 test('service d’extraction optionnel, clé serveur et contrat JSON',async()=>{
   const result=await importUrl(url,{SCRAPER_API_URL:'https://extractor.example/import',SCRAPER_API_KEY:'test-only-key'},async(endpoint,opts)=>{

@@ -2,5 +2,6 @@
   "name": "drop-studio", "version": "1.0.0", "private": true, "type": "module",
   "description": "AliExpress to marketplace listing workspace",
   "engines": { "node": ">=22.9" },
+  "dependencies": { "playwright": "1.62.1" },
   "scripts": { "start": "node --env-file-if-exists=.env server/index.js", "dev": "node --watch --env-file-if-exists=.env server/index.js", "test": "node --test", "check": "node --check server/index.js && node --check public/app.js" }
 }

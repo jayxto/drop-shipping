@@ -4,10 +4,12 @@ Atelier web sombre en français : **lien AliExpress → génération → fiche m
 
 ## Démarrer
 
-**Node.js 22.9+**, aucune dépendance à télécharger ni build nécessaire.
+**Node.js 22.9+**, npm et Chromium via Playwright. Aucun build de l'interface nécessaire.
 
 ```sh
-node server/index.js
+npm install
+npx playwright install chromium
+npm start
 ```
 
 Ouvrir **http://localhost:3000**, puis **Essayer un exemple → Générer ma fiche**. Modifier, enregistrer et simuler un envoi. Sans identifiants, aucune requête IA ou marketplace n'est effectuée. Le vase est une illustration SVG locale explicitement identifiée, pas une photo fournisseur.
@@ -57,13 +59,17 @@ Le code du ZIP a été examiné : `aliexpress.js` pour le format source et `popu
 
 ## Import par lien AliExpress
 
-Coller un lien complet `https://www.aliexpress.com/item/123456789.html`, puis cliquer sur Générer. Le serveur supprime les paramètres de suivi, limite les domaines et chemins, refuse les redirections externes, récupère la page et lit ses métadonnées Product JSON-LD/Open Graph. Il n'exécute aucun script de la page et ne contourne ni connexion ni CAPTCHA. Les liens raccourcis ne sont pas acceptés : ouvrir le produit et copier son URL complète.
+Coller un lien complet `https://www.aliexpress.com/item/123456789.html`, puis cliquer sur Générer. Par défaut le serveur ouvre **Chromium avec Playwright**, exécute le JavaScript de la page dans un contexte isolé, attend les données du produit et lit les métadonnées Product JSON-LD/Open Graph ou le DOM rendu (titre, prix, images, variantes). Les paramètres de suivi sont retirés. Les liens raccourcis ne sont pas acceptés : copier l'URL complète du produit.
 
-**AliExpress bloque souvent les requêtes serveur ou ne fournit les données qu'après exécution JavaScript. L'import direct n'est donc pas garanti pour toutes les annonces.** Dans ce cas, une erreur explicite est affichée ; aucune fiche n'est inventée. Le repli est l'extension existante ou un service d'extraction configuré par l'exploitant.
+Le navigateur démarre sans session personnelle et se ferme après chaque demande. Deux imports simultanés maximum ; délai de lancement 15 secondes puis budget de chargement 45 secondes. Les requêtes sont limitées à des domaines marketplace/CDN HTTPS ; service workers, WebSockets et téléchargements sont bloqués. Déployer ce processus dans un conteneur isolé sans accès au réseau privé ou aux services internes : le filtrage applicatif ne remplace pas l'isolation réseau du navigateur.
+
+Sur Linux, installer aussi les dépendances système : `npx playwright install --with-deps chromium`. Sur Windows, `BROWSER_CHANNEL=msedge` peut utiliser Edge déjà installé sans télécharger Chromium. Aucun profil utilisateur ni cookie personnel n'est importé. L'ancien import statique reste disponible via `ALIEXPRESS_IMPORT_MODE=metadata`.
+
+**Un vrai navigateur ne garantit pas l'accès à toutes les annonces.** AliExpress peut encore demander une connexion ou un CAPTCHA. L'application s'arrête alors avec un message explicite, sans contourner la vérification ni inventer de fiche. Le repli reste l'extension sur une page que l'utilisateur ouvre lui-même ou un service d'extraction configuré.
 
 Pour une extraction plus complète, renseigner `SCRAPER_API_URL` avec un endpoint HTTPS de confiance et éventuellement `SCRAPER_API_KEY`. Ce connecteur générique attend `POST {"url":"https://…"}` avec `Authorization: Bearer <clé>` et une réponse produit au format du bridge, directement ou sous `{ "product": ... }`. Il faut adapter votre fournisseur à ce contrat ; ce n'est pas une intégration prête à l'emploi pour un fournisseur particulier. L'URL et la clé du service restent dans l'environnement serveur. Le lien est alors transmis à ce service. Aucune clé de scraping n'est requise pour essayer les métadonnées publiques.
 
-Le prix et les variantes peuvent être absents ou incomplets dans les métadonnées publiques. Les vérifier dans la fiche source. Les tests utilisent des pages simulées ; aucun lien produit réel n'a été fourni pour valider l'extraction AliExpress en conditions réelles.
+Le prix et les variantes peuvent être absents ou incomplets ; les vérifier dans la fiche source. Les tests unitaires simulent le transport et le cycle du navigateur. Une fixture JavaScript locale permet de contrôler le lecteur DOM. Le lien fourni par l'utilisateur n'a pas pu être validé : l'outil de navigation de cette session en a bloqué l'accès. Aucune réussite d'extraction réelle n'est revendiquée.
 
 ## Configuration
 
@@ -80,6 +86,8 @@ node --env-file=.env server/index.js
 | `APP_PASSWORD` | Mot de passe personnel ; nom d'utilisateur Basic libre |
 | `OPENAI_API_KEY` | Clé serveur uniquement |
 | `OPENAI_MODEL` | Modèle de votre compte compatible Responses + Structured Outputs |
+| `ALIEXPRESS_IMPORT_MODE` | `browser` par défaut ; `metadata` pour l'ancien mode statique |
+| `BROWSER_CHANNEL` | `chromium` par défaut ; `msedge` ou `chrome` si déjà installé |
 | `SCRAPER_API_URL` / `SCRAPER_API_KEY` | Extracteur optionnel conforme au contrat ci-dessus |
 | `MARKETPLACE_MODE` | `demo` ou `connected` ; publication réelle bloquée dans les deux cas |
 | `ETSY_CLIENT_ID` | Keystring de l'application Etsy |
