@@ -1,34 +1,31 @@
-# API et adaptateurs
+# API Drop Studio
 
-API JSON même origine. `GET /api/config` fournit le cookie de session et le jeton CSRF. Les POST exigent `Content-Type: application/json`, `Origin: <APP_URL>` et `X-CSRF-Token`.
+JSON, même origine. `GET /api/config` fournit cookie et CSRF. Tous les POST exigent `Origin: <APP_URL>`, `Content-Type: application/json` et `X-CSRF-Token`. L'espace personnel est protégé par `APP_PASSWORD` en déploiement public.
 
 | Route | Entrée | Résultat |
 | --- | --- | --- |
-| `GET /api/config` | — | `csrf`, `generation`, `marketplaceMode`, états de connexion |
-| `POST /api/import` | `{raw: string}` | `{source}` |
-| `POST /api/import-url` | `{url: string}` | `{source, method, warnings}` |
-| `POST /api/generate` | `{raw, options: {multiplier, shipping, fees}}` | `{listing}` |
-| `GET /api/drafts` | — | `{drafts}` |
-| `POST /api/drafts` | `{listing}` | fiche validée/enregistrée par UUID |
-| `POST /api/publish/:market` | `{listing}` | simulation ou 501 avec plan |
-| `POST /api/oauth/:market/start` | `{}` | `{url}` de consentement |
-| `GET /api/oauth/:market/callback` | `code`, `state` | échange serveur, redirection |
-| `POST /api/oauth/:market/disconnect` | `{}` | suppression des jetons de session |
+| GET /healthz | — | santé, sans données confidentielles |
+| GET /api/config | — | CSRF, modes, états de connexion, environnement eBay |
+| GET /api/settings | — | champs de configuration ; aucun secret réaffiché |
+| POST /api/settings | `{settings:{KEY:"value"}}` | valeurs autorisées enregistrées dans le coffre |
+| POST /api/import | `{raw}` | source normalisée |
+| POST /api/import-url | `{url}` | source, méthode et avertissements |
+| POST /api/generate | `{raw,options:{multiplier,shipping,fees}}` | fiche générée |
+| GET /api/drafts | — | brouillons |
+| POST /api/drafts | `{listing}` | fiche enregistrée par UUID |
+| POST /api/prepare/:market | `{listing}` | validation, résumé et jeton de confirmation valable 5 minutes |
+| POST /api/publish/:market | `{listing,confirmation}` | simulation en mode demo ; publication en mode live |
+| GET /api/history | — | états des publications sans identifiants API |
+| POST /api/oauth/:market/start | `{}` | URL de consentement |
+| GET /api/oauth/:market/callback | code + state | échange et stockage chiffré des jetons |
+| POST /api/oauth/:market/disconnect | `{}` | suppression des jetons du serveur |
 
-`:market` accepte `etsy` ou `ebay`. Une fiche comprend `id`, `title`, `description`, `price`, `currency`, `tags`, `materials`, `variants`, `images`, `category`, `condition`, `specifics`, `source`, `pricing`, `generation`, `updatedAt`. Les variantes sont conservées en libellés (objets importés sérialisés en JSON), pas encore mappées vers un inventaire vendeur.
+Marchés : `etsy`, `ebay`. Une fiche contient `id`, `title`, `description`, `price`, `currency`, `tags`, `materials`, `variants`, `images`, `category`, `condition`, `specifics`, `source`, `pricing`, `generation`, `updatedAt`.
 
-Erreurs : 400 validation ; 401 authentification ; 403 hôte/origine/CSRF/state ; 409 OAuth non configuré ; 413 taille ; 429 débit ; 501 publication réelle non implémentée ; 502 amont indisponible. Les réponses contiennent `error`, sans détail secret amont.
+Champs de vente : `quantity` entier 1–999, `selectedVariant` parmi les variantes s'il y en a, `verified:true`. Etsy exige aussi `etsyEligible:true`, `whoMade`, `whenMade`, `isSupply`. Les faits ne sont jamais inventés pour satisfaire l'API.
 
-## Compléter la publication
+Le jeton de confirmation est lié à la session, au marché, à la fiche exacte et aux réglages publics. Usage unique, 5 minutes. Une fiche modifiée doit être préparée de nouveau. `published:true` n'est renvoyé qu'après confirmation de l'API. `sandbox:true` distingue eBay test d'une publication production.
 
-Le point d'extension est `/api/publish/:market` dans `server/index.js`, avec les transformateurs de `server/listing.js`.
+Le journal identifie une annonce par marketplace, compte configuré, UUID de fiche et variante. Il enregistre chaque étape avant l'appel, puis les identifiants retournés. Les doubles clics sont exclus dans le processus ; un résultat déjà publié est réutilisé. Une tentative incertaine reste bloquée jusqu'à vérification manuelle. Le coffre et le journal doivent donc rester sur un disque persistant et une seule instance doit y écrire.
 
-1. Valider les données et profils vendeur côté serveur. Vérifier expiration/scopes et renouveler les jetons.
-2. Construire un inventaire par variante : SKU, options, quantité, prix, images. Ne pas inventer stocks, délais ou auteur.
-3. Créer une fiche brouillon/offre inactive. Ne pas tronquer silencieusement un titre eBay trop long.
-4. Envoyer les images via l'API adaptée. Un tableau d'URL Etsy ne téléverse rien. Si des téléchargements serveur sont ajoutés, protéger contre SSRF : DNS/IP privées, redirections, taille, type et délai.
-5. Enregistrer durablement les identifiants marketplace et étapes avant activation. Réconcilier les réponses ambiguës et empêcher les doublons lors des retries.
-6. Afficher les frais éventuels et prévoir la validation finale dans le produit avant activation.
-7. Tester chaque catégorie/variante prise en charge avec un compte de test. Renvoyer `published:true` seulement après confirmation positive de la marketplace.
-
-`simulated:true` est réservé à la démo. Aucun chemin caché n'active une publication réelle.
+Erreurs : 400 format ; 401 authentification ; 403 origine/CSRF ; 409 connexion/confirmation/reprise ; 413 taille ; 422 données ou refus marketplace ; 429 débit ; 502 amont ; 503 navigateur absent ; 504 délai. Un échec de publication peut avoir créé un brouillon ou une offre inactive : consulter l'historique et la marketplace avant toute nouvelle fiche.

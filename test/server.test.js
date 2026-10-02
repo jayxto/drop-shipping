@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {createApp} from '../server/index.js';
 import http from 'node:http';
+import {secretStore} from '../server/storage.js';
 
 // Node fetch owns its Host header. Use node:http to test explicit host validation.
 function fetch(url, options={}) {
@@ -20,7 +21,8 @@ function fetch(url, options={}) {
 test('parcours HTTP complet, persistance, CSRF, isolation statique et simulation',async()=>{
   const dir=await mkdtemp(path.join(os.tmpdir(),'drop-studio-test-'));
   const env={APP_URL:'http://localhost:3000',MARKETPLACE_MODE:'demo'};
-  const server=createApp({env,dataDir:dir});await new Promise(r=>server.listen(0,'127.0.0.1',r));
+  let externalCalls=0;
+  const server=createApp({env,dataDir:dir,request:async(url)=>{externalCalls++;if(url.endsWith('/publish'))return Response.json({listingId:'12345'});if(url.endsWith('/offer'))return Response.json({offerId:'678'});return new Response(null,{status:204});}});await new Promise(r=>server.listen(0,'127.0.0.1',r));
   const base=`http://127.0.0.1:${server.address().port}`;
   const initial=await fetch(base+'/api/config',{headers:{host:'localhost:3000'}});
   const cookie=initial.headers.get('set-cookie').split(';')[0],cfg=await initial.json();
@@ -39,9 +41,20 @@ test('parcours HTTP complet, persistance, CSRF, isolation statique et simulation
     assert.equal((await request('/api/drafts',{listing})).status,200);
     const stored=await (await request('/api/drafts')).json();assert.equal(stored.drafts[0].title,'Titre modifié');
     const simulation=await (await request('/api/publish/ebay',{listing})).json();assert.equal(simulation.simulated,true);assert.equal(simulation.plan.market,'ebay');
-    env.MARKETPLACE_MODE='connected';assert.equal((await request('/api/publish/etsy',{listing})).status,501);
+    env.MARKETPLACE_MODE='live';assert.equal((await request('/api/publish/etsy',{listing})).status,409);
     assert.equal((await request('/api/oauth/etsy/start',{})).status,409);
     assert.equal((await request('/api/drafts',{listing:{...listing,title:''}})).status,400);
     const disk=JSON.parse(await readFile(path.join(dir,'drafts.json'),'utf8'));assert.equal(disk[0].title,'Titre modifié');
+    assert.equal((await request('/healthz')).status,200);
+    assert.equal((await request('/api/settings',{settings:{OPENAI_API_KEY:'test-secret',MARKETPLACE_MODE:'live',EBAY_CLIENT_ID:'test-id',EBAY_CLIENT_SECRET:'test-ebay-secret',EBAY_LOCATION_KEY:'location',EBAY_PAYMENT_POLICY_ID:'1',EBAY_RETURN_POLICY_ID:'2',EBAY_FULFILLMENT_POLICY_ID:'3'}})).status,200);
+    const settings=await (await request('/api/settings')).json();assert.ok(!JSON.stringify(settings).includes('test-secret'));
+    await secretStore(dir).update(d=>{d.tokens.ebay={accessToken:'test-token',expires:Date.now()+3600000};});
+    const liveListing={...listing,title:'Vase',images:['https://example.com/photo.jpg'],quantity:2,category:'123',verified:true,selectedVariant:listing.variants[0]};
+    const prepared=await (await request('/api/prepare/ebay',{listing:liveListing})).json();assert.ok(prepared.confirmation);
+    assert.equal((await request('/api/publish/ebay',{listing:{...liveListing,price:99},confirmation:prepared.confirmation})).status,409);assert.equal(externalCalls,0);
+    const again=await (await request('/api/prepare/ebay',{listing:liveListing})).json();
+    const published=await (await request('/api/publish/ebay',{listing:liveListing,confirmation:again.confirmation})).json();assert.equal(published.published,true);assert.equal(externalCalls,3);
+    assert.equal((await request('/api/publish/ebay',{listing:liveListing,confirmation:again.confirmation})).status,409);
+    const history=await (await request('/api/history')).json();assert.equal(history.publications[0].status,'published');assert.ok(!JSON.stringify(history).includes('test-token'));
   } finally {await new Promise(r=>server.close(r));await rm(dir,{recursive:true,force:true});}
 });

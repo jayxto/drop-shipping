@@ -1,3 +1,5 @@
+import {mountWorkspace,updateVariantOptions,loadSettings,loadHistory,confirmPublication} from './workspace.js';
+mountWorkspace();
 const $ = id => document.getElementById(id);
 let config, listing, drafts = [], busy = false, noticeTimer;
 const money = (n,c=listing?.currency || 'EUR') => new Intl.NumberFormat('fr-FR',{style:'currency',currency:c}).format(n);
@@ -16,17 +18,19 @@ async function refreshConfig() {
   config=await api('config');
   $('mode').textContent=config.generation==='demo'?'● Mode démo':'● IA connectée';
   $('generationHelp').textContent=config.generation==='demo'?'Démo locale · génération déterministe, sans IA':'Génération IA · les données seront transmises à OpenAI';
-  for(const m of ['etsy','ebay']) $(m+'State').textContent=config.connections[m]?'Connecté · session temporaire':'Non connecté';
+  for(const m of ['etsy','ebay']) $(m+'State').textContent=config.connections[m]?'Connecté · enregistré sur le serveur':'Non connecté';
   const demo=config.marketplaceMode==='demo';
-  document.querySelector('.publish-panel .pill').textContent=demo?'MODE TEST':'PRÉPARATION';
-  document.querySelector('.publish-panel .subtext').textContent=demo?'Testez le parcours d’envoi. Aucune annonce ne sera mise en ligne.':'Connexion disponible. La publication réelle nécessite de compléter les adaptateurs.';
+  document.querySelector('.publish-panel .pill').textContent=demo?'MODE TEST':'PUBLICATION';
+  document.querySelector('.publish-panel .subtext').textContent=demo?'Testez le parcours d’envoi. Aucune annonce ne sera mise en ligne.':`Un récapitulatif sera demandé avant l’envoi. eBay : ${config.ebaySandbox?'Sandbox (test)':'production'}. Etsy : boutique réelle.`;
   $('publishEtsy').querySelector('span').textContent=demo?'Simuler sur Etsy':'Préparer pour Etsy';
   $('publishEbay').querySelector('span').textContent=demo?'Simuler sur eBay':'Préparer pour eBay';
 }
 function page(name) {
   document.querySelectorAll('.page').forEach(el=>el.hidden=el.id!==name);
   document.querySelectorAll('.nav').forEach(el=>el.classList.toggle('active',el.dataset.page===name));
-  $('breadcrumb').textContent={studio:'Atelier de fiches',drafts:'Mes brouillons',connections:'Connexions'}[name];
+  $('breadcrumb').textContent={studio:'Atelier de fiches',drafts:'Mes brouillons',connections:'Connexions',settings:'Réglages',history:'Historique'}[name];
+  if(name==='settings')loadSettings(api).catch(e=>notify(e.message,true));
+  if(name==='history')loadHistory(api).catch(e=>notify(e.message,true));
   window.scrollTo({top:0,behavior:'smooth'});
 }
 document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>page(b.dataset.page)));
@@ -53,6 +57,11 @@ async function refreshDrafts() {
 function populate() {
   for(const key of ['title','description','price','currency','category']) $(key).value=listing[key] ?? '';
   for(const key of ['tags','materials','variants','images']) $(key).value=(listing[key] || []).join(['tags','materials'].includes(key)?', ':'\n');
+  $('quantity').value=listing.quantity || '';
+  $('specifics').value=Object.entries(listing.specifics || {}).map(([k,v])=>`${k} : ${v}`).join('\n');
+  for(const key of ['verified','isSupply','etsyEligible'])$(key).checked=Boolean(listing[key]);
+  for(const key of ['whoMade','whenMade'])$(key).value=listing[key] || '';
+  updateVariantOptions(listing);
   $('editor').hidden=false; $('emptyEditor').hidden=true;
   $('editorStatus').textContent=listing.generation==='openai'?'GÉNÉRÉE PAR IA':'BROUILLON DÉMO';
   $('publishEtsy').disabled=false; $('publishEbay').disabled=false;
@@ -65,7 +74,13 @@ function collect() {
   const previous=listing.images.join('\n');
   for(const key of ['title','description','currency','category']) listing[key]=$(key).value;
   listing.price=Number($('price').value);
+  const oldVariants=listing.variants.join('\n');
+  listing.quantity=Number($('quantity').value);listing.selectedVariant=$('selectedVariant').value;
+  for(const key of ['verified','isSupply','etsyEligible'])listing[key]=$(key).checked;
+  for(const key of ['whoMade','whenMade'])listing[key]=$(key).value;
+  listing.specifics=Object.fromEntries(split($('specifics').value,'\n').map(line=>{const i=line.indexOf(':');return i>0?[line.slice(0,i).trim(),line.slice(i+1).trim()]:null;}).filter(Boolean));
   for(const key of ['tags','materials','variants','images']) listing[key]=split($(key).value,['tags','materials'].includes(key)?',':'\n');
+  if(oldVariants!==listing.variants.join('\n'))updateVariantOptions(listing);
   updatePreview(); if(previous!==listing.images.join('\n')) renderImages();
   $('publishResult').hidden=true;
 }
@@ -152,13 +167,27 @@ function showPlan(result) {
 }
 for(const market of ['etsy','ebay']){
   const button=$(market==='etsy'?'publishEtsy':'publishEbay');
-  button.onclick=async()=>{collect();button.disabled=true;try {showPlan(await api(`publish/${market}`,{listing}));}catch(e){if(e.plan)showPlan({plan:e.plan});notify(e.message,true);}finally{button.disabled=false;}};
+  button.onclick=async()=>{
+    collect();if(!listing)return;button.disabled=true;const snapshot=structuredClone(listing);
+    try {
+      if(config.marketplaceMode==='demo'){showPlan(await api(`publish/${market}`,{listing:snapshot}));return;}
+      const prepared=await api(`prepare/${market}`,{listing:snapshot});
+      if(!await confirmPublication(prepared))return;
+      const result=await api(`publish/${market}`,{listing:snapshot,confirmation:prepared.confirmation});
+      $('publishResult').replaceChildren();$('publishResult').hidden=false;
+      const p=document.createElement('p');p.textContent=result.sandbox?'Annonce créée dans eBay Sandbox.':'Annonce publiée avec succès.';
+      const a=document.createElement('a');a.textContent='Voir l’annonce ↗';a.href=result.url;a.target='_blank';a.rel='noopener noreferrer';$('publishResult').append(p,a);
+      notify(p.textContent);
+    }catch(e){notify(e.message,true);}finally{button.disabled=false;}
+  };
 }
+$('settingsForm').onsubmit=async e=>{e.preventDefault();const button=e.submitter;button.disabled=true;try{await api('settings',{settings:Object.fromEntries(new FormData(e.target))});await refreshConfig();await loadSettings(api);notify('Réglages enregistrés.');}catch(e){notify(e.message,true);}finally{button.disabled=false;}};
+$('refreshHistory').onclick=()=>loadHistory(api).catch(e=>notify(e.message,true));
 document.querySelectorAll('[data-connect]').forEach(b=>b.onclick=async()=>{
   b.disabled=true;try{const {url}=await api(`oauth/${b.dataset.connect}/start`,{});window.location.assign(url);}catch(e){notify(e.message,true);b.disabled=false;}
 });
 document.querySelectorAll('[data-disconnect]').forEach(b=>b.onclick=async()=>{
-  try {await api(`oauth/${b.dataset.disconnect}/disconnect`,{});await refreshConfig();notify('Compte déconnecté de cette session.');}catch(e){notify(e.message,true);}
+  try {await api(`oauth/${b.dataset.disconnect}/disconnect`,{});await refreshConfig();notify('Compte déconnecté du serveur.');}catch(e){notify(e.message,true);}
 });
-try {await refreshConfig();await refreshDrafts();if(new URLSearchParams(location.search).has('connected')){page('connections');history.replaceState(null,'','/');notify('Compte connecté. La publication réelle reste désactivée.');}}
+try {await refreshConfig();await refreshDrafts();if(new URLSearchParams(location.search).has('connected')){page('connections');history.replaceState(null,'','/');notify('Compte connecté. Vérifiez les réglages avant publication.');}}
 catch(e){notify('Connexion au serveur impossible. Rechargez la page. '+e.message,true);}

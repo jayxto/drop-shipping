@@ -1,10 +1,10 @@
 # Drop Studio
 
-Atelier web sombre en français : **lien AliExpress → génération → fiche modifiable → préparation Etsy/eBay**. Compatible aussi avec le format et le prompt du ZIP `ali-ebay-bridge-v2.1` fourni pour ce projet.
+Atelier vendeur en français : **lien AliExpress → génération → fiche modifiable → publication Etsy/eBay**. Interface sombre, import par navigateur Chromium, démo sans clé, brouillons persistants, export et historique des envois.
 
-## Démarrer
+## Démarrage
 
-**Node.js 22.9+**, npm et Chromium via Playwright. Aucun build de l'interface nécessaire.
+Node.js 22.9+ (24 recommandé) et npm :
 
 ```sh
 npm install
@@ -12,143 +12,86 @@ npx playwright install chromium
 npm start
 ```
 
-Ouvrir **http://localhost:3000**, puis **Essayer un exemple → Générer ma fiche**. Modifier, enregistrer et simuler un envoi. Sans identifiants, aucune requête IA ou marketplace n'est effectuée. Le vase est une illustration SVG locale explicitement identifiée, pas une photo fournisseur.
+Ouvrir **http://localhost:3000**. Sans clé API, le bouton « Essayer un exemple » permet de tester le parcours en démo. Pour Linux : `npx playwright install --with-deps chromium`. Sur Windows, `BROWSER_CHANNEL=msedge` dans `.env` utilise Edge déjà installé. Le serveur charge `.env` avec `npm start`. Sans npm, après installation des dépendances : `node --env-file-if-exists=.env server/index.js`.
 
-Avec npm : `npm start`, `npm run dev`, `npm test`. Sans npm :
+## Configuration dans le site
+
+1. **Réglages → IA** : saisir la clé API OpenAI et un modèle compatible Responses/Structured Outputs accessible à votre compte. L'abonnement ChatGPT ne remplace pas cette configuration API. Sans les deux champs, la génération reste une démo déterministe.
+2. **Réglages → eBay/Etsy** : identifiants de l'application et profils vendeur.
+3. **Connexions** : autoriser le compte vendeur via OAuth.
+4. Tester eBay avec **Sandbox = true**. Choisir **Vente réelle** pour activer les appels API ; eBay reste dans Sandbox tant que son réglage vaut true. Etsy n'a pas de mode Sandbox dans l'application.
+5. Importer un produit, relire, indiquer le stock réel, la catégorie marketplace, la variante vendue et ses images. Vérifier les caractéristiques obligatoires. Confirmer le récapitulatif avant l'envoi.
+
+Les champs secrets restent vides après sauvegarde ; un champ vide conserve sa valeur. Les réglages sauvegardés priment sur les variables d'environnement. Changer les identifiants/environnement d'une marketplace déconnecte le compte. Déconnecter efface les jetons du serveur mais ne révoque pas l'application dans le compte marketplace.
+
+## Publication implémentée
+
+- **eBay France, produits neufs, EUR** : création/remplacement de l'inventaire, création d'offre avec stock/emplacement/profils vendeur, puis publication. Les caractéristiques de catégorie se modifient dans la fiche. Les images sont transmises sous forme d'URL HTTPS.
+- **Etsy, produits physiques éligibles** : création de brouillon avec taxonomie, auteur, période, profil de préparation/livraison/retour ; téléchargement borné des images fournisseur JPEG/PNG ; upload multipart et activation après confirmation. Cette version accepte au plus 10 images provenant de `aliexpress-media.com` ou `alicdn.com`.
+- **Une variante choisie par annonce** : titre/description précisent cette variante. Le prix, les images et le stock doivent correspondre à ce choix. Les groupes multivariantes dans une annonce unique ne sont pas implémentés.
+- **Prévention des doublons** : journal durable avant/après chaque étape. Une répétition d'un envoi déjà publié retourne son résultat sans publier à nouveau. Un refus explicite permet de reprendre les étapes non terminées si la fiche/configuration est inchangée. Une réponse incertaine ou une interruption bloque l'envoi : vérifier manuellement la marketplace avant toute nouvelle annonce. L'interface Historique affiche l'état.
+
+Une modification de fiche déjà publiée n'est pas synchronisée vers la marketplace. Les commandes, achats fournisseur, suivi livraison et synchronisation des stocks ne sont pas gérés. Une catégorie peut exiger des informations supplémentaires propres au vendeur/produit ; les erreurs de l'API sont présentées avec l'étape et le code HTTP. Un produit revendu ne doit pas être déclaré comme fait main.
+
+**Validation réelle encore nécessaire avec vos comptes** : les adaptateurs ont des tests à transport simulé. Sans identifiants fournis, aucune annonce payante, connexion OAuth réelle ou génération OpenAI réelle n'a été exécutée pendant le développement.
+
+## Import AliExpress
+
+Coller l'URL complète HTTPS `/item/<id>.html`. Le serveur ouvre un contexte Chromium neuf, attend les données JavaScript, lit JSON-LD/Open Graph ou le DOM. Aucun cookie/profil personnel n'est importé. Deux imports simultanés, lancement borné à 15 s puis chargement à 45 s ; navigateur fermé après chaque requête. Les ressources sont limitées aux domaines marketplace/CDN HTTPS. Service workers, WebSockets et téléchargements sont bloqués.
+
+AliExpress peut demander un CAPTCHA/une connexion ou bloquer les serveurs : l'application s'arrête explicitement, sans contournement ni données inventées. Le lien réel fourni n'a pas pu être vérifié dans cette session car l'outil de navigation en bloquait l'accès. Une fixture locale JavaScript a validé le lecteur DOM.
+
+Repli : ouvrir « Import via extension ou fichier », coller le texte entier du bouton **Copier pour ChatGPT** de l'extension `ali-ebay-bridge-v2.1`. Les marqueurs `DONNÉES SCRAPÉES :` et `EBAY_LISTING_JSON_START…END` sont reconnus. L'extension existante n'est pas modifiée/installée automatiquement. L'export JSON inclut `selectedImageUrls` pour sa compatibilité.
+
+`ALIEXPRESS_IMPORT_MODE=metadata` active l'ancien mode HTML statique. `SCRAPER_API_URL` active un extracteur de confiance prioritaire : endpoint HTTPS recevant `POST {"url":"https://…"}`, clé optionnelle `SCRAPER_API_KEY` en Bearer, réponse produit au format bridge directement ou sous `product`. Adapter votre fournisseur à ce contrat ; aucun fournisseur particulier n'est inclus.
+
+## Identifiants et profils à renseigner
+
+### eBay
+
+Créer une application développeur et les clés de l'environnement choisi. Enregistrer une URL de retour `https://votre-site/api/oauth/ebay/callback` dans le portail et renseigner le **RuName** associé (pas l'URL) dans Réglages. Scope : `sell.inventory`.
+
+Le compte doit déjà posséder un emplacement Inventory API actif (`EBAY_LOCATION_KEY`) et les politiques de paiement, retour et livraison applicables à eBay France. Copier leurs IDs dans Réglages. Il ne suffit pas de saisir le nom d'une politique. Le site ne crée pas ces règles commerciales à votre place.
+
+### Etsy
+
+Enregistrer une URL de retour **HTTPS exacte** : `https://votre-site/api/oauth/etsy/callback`. Renseigner keystring, shared secret, ID de boutique, devise réelle de la boutique et IDs des profils de livraison, préparation (`readiness_state_id`) et retour. Scopes : `listings_r listings_w shops_r`. Les appels utilisent `x-api-key: keystring:shared_secret` côté serveur.
+
+La fiche demande `who_made`, `when_made`, `is_supply` et confirmation de l'éligibilité. Exemples de codes de période : `2020_2026`, `2010_2019`, `made_to_order` (uniquement si vraiment fabriqué sur commande). Aucun de ces faits n'est choisi automatiquement.
+
+## Sécurité et persistance
+
+- Espace personnel **un vendeur**, une instance serveur. Brouillons partagés dans cet espace, pas un SaaS multiclient.
+- Clés et jetons dans `vault.enc`, chiffrés AES-256-GCM. La clé est `VAULT_KEY` (32 octets base64) ou `vault.key` générée localement. Protéger et sauvegarder les deux ; le chiffrement ne protège pas contre un accès complet au serveur et à sa clé.
+- Jetons renouvelés côté serveur ; sessions navigateur temporaires avec cookies HttpOnly/SameSite et Secure sous HTTPS.
+- Contrôles Host/Origin/CSRF, CSP, taille des requêtes et débit par session. Pas de secrets dans le code client, journaux de publication ou réponses de configuration.
+- Répertoire par défaut `.data`, personnalisable via `DATA_DIR`. Contient brouillons, coffre et historique. Écritures sérialisées et remplacement atomique. Sauvegarder régulièrement ; maximum 200 brouillons conservés, historique conservé sans purge automatique.
+- `.env`, `.data`, dépendances et secrets sont ignorés par Git et Docker.
+- Exposition publique : `APP_PASSWORD` fort obligatoire, HTTPS, reverse proxy conservant Host exact. Ne pas journaliser les URL complètes des callbacks OAuth. Basic derrière TLS convient à cet espace personnel ; utiliser un VPN/proxy d'authentification pour une protection complémentaire.
+- Isoler Chromium dans un conteneur sans accès aux réseaux privés/services internes. Le filtrage des domaines n'est pas un remplacement pour des règles réseau.
+
+## Hébergement et Docker
+
+Le `Dockerfile` installe Chromium et les bibliothèques système. Pour un test Docker local : définir `APP_PASSWORD`, puis `docker compose up --build`. Le volume `studio-data` conserve les données. Docker et le déploiement distant doivent être validés sur l'hôte choisi.
+
+Pour Render : service web Docker depuis la branche du projet, région Europe si disponible, **une instance** et disque persistant monté sur `/data`. Variables : `HOST=0.0.0.0`, `DATA_DIR=/data`, `APP_PASSWORD` secret. `APP_URL` peut être omis : `RENDER_EXTERNAL_URL` fourni par Render est utilisé. Health check : `/healthz`. L'URL publique doit être enregistrée dans les portails OAuth. Un disque persistant exige une offre compatible ; vérifier son coût avant création. Une offre avec stockage éphémère n'est pas adaptée aux identifiants et brouillons durables.
+
+## Prix et génération
+
+`prix = ceil(((coût + livraison) × coefficient / (1 − frais/100)) × 100)/100`.
+Le résultat estimé déduit coût, livraison et frais saisis. Les 13 % par défaut sont une hypothèse modifiable, pas un tarif officiel. Fiscalité, retours, publicité, frais fixes et change exclus. Une plage fournisseur utilise le premier prix : vérifier la variante.
+
+OpenAI rédige titre/description/tags via Responses et schéma strict (`store:false`). Images, matériaux et variantes restent issus de la source ; le prix est local. Les données sont traitées comme non fiables ; relire les faits. Une erreur IA n'est pas masquée par la démo.
+
+## Tests et fichiers
 
 ```sh
-node --watch --env-file-if-exists=.env server/index.js
-node --test
-node --check public/app.js
+npm test
+npm run check
 ```
 
-## Fonctionnalités
+Tests : import URL/bridge, navigateur simulé, prix, IA simulée, PKCE et rejeu, renouvellement OAuth, coffre chiffré, validation vendeur, enchaînement eBay/Etsy simulé, upload d'images, doublons et réponses incertaines, confirmation serveur, CSRF, secrets et stockage. Aucun test ne dépense de crédit ni ne publie réellement.
 
-- Lien produit AliExpress comme entrée principale : récupération serveur des métadonnées publiques, puis génération en un clic.
-- Import JSON collé, fichier `.json`/`.txt`, texte libre et prompt complet du bridge.
-- Reconnaissance de `sourceTitle`, `prices`, `specifics`, `variants`, `images: [{url}]`, `selectedImages`, `sourceUrl`, `shipping`. Une sélection d'images vide est respectée.
-- Anciens blocs `EBAY_LISTING_JSON_START…END` et blocs Markdown JSON acceptés.
-- Génération démo déterministe ou OpenAI réelle selon la configuration.
-- Édition du titre, description, prix, devise, catégorie, tags, matériaux, variantes et URL d'images ; aperçu en direct et galerie.
-- Calcul de prix configurable, estimation du résultat, brouillons persistants et export JSON compatible avec l'ancien bridge (`selectedImageUrls`).
-- Simulation Etsy/eBay, contrôles et téléchargement du plan API.
-- OAuth réel : Etsy PKCE S256, eBay authorization code, état aléatoire à usage unique, callback, échange serveur et déconnexion.
+`public/` interface ; `server/aliexpress.js` et `browser-import.js` import ; `listing.js` normalisation ; `generate.js` IA ; `oauth.js` connexion/renouvellement ; `storage.js` coffre/journal ; `settings.js` configuration ; `marketplaces.js` publication ; `index.js` HTTP. Contrat : [docs/API.md](docs/API.md).
 
-## Limites de publication
-
-**Aucune annonce réelle n'est publiée par cette version.** `MARKETPLACE_MODE=connected` retourne volontairement HTTP 501 avec le plan API. Ajouter des clés ne supprime pas cette limite. Les plans sont des squelettes, pas des requêtes complètes directement envoyables.
-
-Pour publier réellement, compléter :
-
-- **Etsy** : boutique, taxonomie, quantité, auteur/date de fabrication, profils de livraison/traitement applicables, upload des images, mapping des variantes et stocks, activation du brouillon.
-- **eBay** : emplacement, politiques vendeur, aspects obligatoires par catégorie, stock, images, groupes de variantes, création puis publication de l'offre.
-- **Jetons** : coffre chiffré, renouvellement et révocation. Actuellement ils restent en mémoire, expirent, et une reconnexion est nécessaire après expiration/redémarrage.
-- **Écritures fiables** : identifiants stables, journal des étapes, déduplication et réconciliation après une réponse incertaine. Ne pas réessayer aveuglément une publication payante.
-
-Cette application est un espace personnel pour un vendeur. Un SaaS demanderait authentification multiclient, isolation des boutiques et brouillons, base de données et quotas globaux.
-
-## Utiliser l'extension existante
-
-Cette entrée est désormais un secours dans le panneau replié « Import via extension ou fichier ». Le parcours principal utilise le lien de l'annonce.
-
-1. Dans l'extension : **Scraper le produit**, sélectionner les images, puis **Copier pour ChatGPT**.
-2. Coller tout le texte dans Drop Studio. Inutile de passer par ChatGPT : le parseur extrait le JSON après `DONNÉES SCRAPÉES :`.
-3. Vérifier les données, générer, modifier et enregistrer.
-
-Le code du ZIP a été examiné : `aliexpress.js` pour le format source et `popup.js` pour les marqueurs/exports. L'extension n'est ni installée ni modifiée automatiquement. Son scraper reste dépendant du DOM AliExpress.
-
-## Import par lien AliExpress
-
-Coller un lien complet `https://www.aliexpress.com/item/123456789.html`, puis cliquer sur Générer. Par défaut le serveur ouvre **Chromium avec Playwright**, exécute le JavaScript de la page dans un contexte isolé, attend les données du produit et lit les métadonnées Product JSON-LD/Open Graph ou le DOM rendu (titre, prix, images, variantes). Les paramètres de suivi sont retirés. Les liens raccourcis ne sont pas acceptés : copier l'URL complète du produit.
-
-Le navigateur démarre sans session personnelle et se ferme après chaque demande. Deux imports simultanés maximum ; délai de lancement 15 secondes puis budget de chargement 45 secondes. Les requêtes sont limitées à des domaines marketplace/CDN HTTPS ; service workers, WebSockets et téléchargements sont bloqués. Déployer ce processus dans un conteneur isolé sans accès au réseau privé ou aux services internes : le filtrage applicatif ne remplace pas l'isolation réseau du navigateur.
-
-Sur Linux, installer aussi les dépendances système : `npx playwright install --with-deps chromium`. Sur Windows, `BROWSER_CHANNEL=msedge` peut utiliser Edge déjà installé sans télécharger Chromium. Aucun profil utilisateur ni cookie personnel n'est importé. L'ancien import statique reste disponible via `ALIEXPRESS_IMPORT_MODE=metadata`.
-
-**Un vrai navigateur ne garantit pas l'accès à toutes les annonces.** AliExpress peut encore demander une connexion ou un CAPTCHA. L'application s'arrête alors avec un message explicite, sans contourner la vérification ni inventer de fiche. Le repli reste l'extension sur une page que l'utilisateur ouvre lui-même ou un service d'extraction configuré.
-
-Pour une extraction plus complète, renseigner `SCRAPER_API_URL` avec un endpoint HTTPS de confiance et éventuellement `SCRAPER_API_KEY`. Ce connecteur générique attend `POST {"url":"https://…"}` avec `Authorization: Bearer <clé>` et une réponse produit au format du bridge, directement ou sous `{ "product": ... }`. Il faut adapter votre fournisseur à ce contrat ; ce n'est pas une intégration prête à l'emploi pour un fournisseur particulier. L'URL et la clé du service restent dans l'environnement serveur. Le lien est alors transmis à ce service. Aucune clé de scraping n'est requise pour essayer les métadonnées publiques.
-
-Le prix et les variantes peuvent être absents ou incomplets ; les vérifier dans la fiche source. Les tests unitaires simulent le transport et le cycle du navigateur. Une fixture JavaScript locale permet de contrôler le lecteur DOM. Le lien fourni par l'utilisateur n'a pas pu être validé : l'outil de navigation de cette session en a bloqué l'accès. Aucune réussite d'extraction réelle n'est revendiquée.
-
-## Configuration
-
-Copier `.env.example` en `.env`, compléter uniquement sur le serveur, puis lancer :
-
-```sh
-node --env-file=.env server/index.js
-```
-
-| Variable | Usage |
-| --- | --- |
-| `PORT` / `HOST` | `3000` / `127.0.0.1` par défaut |
-| `APP_URL` | Origine exacte du navigateur, sans chemin ; adapter aussi le port |
-| `APP_PASSWORD` | Mot de passe personnel ; nom d'utilisateur Basic libre |
-| `OPENAI_API_KEY` | Clé serveur uniquement |
-| `OPENAI_MODEL` | Modèle de votre compte compatible Responses + Structured Outputs |
-| `ALIEXPRESS_IMPORT_MODE` | `browser` par défaut ; `metadata` pour l'ancien mode statique |
-| `BROWSER_CHANNEL` | `chromium` par défaut ; `msedge` ou `chrome` si déjà installé |
-| `SCRAPER_API_URL` / `SCRAPER_API_KEY` | Extracteur optionnel conforme au contrat ci-dessus |
-| `MARKETPLACE_MODE` | `demo` ou `connected` ; publication réelle bloquée dans les deux cas |
-| `ETSY_CLIENT_ID` | Keystring de l'application Etsy |
-| `ETSY_SHARED_SECRET` | Prévu pour les futurs appels API Etsy, pas utilisé dans l'échange OAuth actuel |
-| `ETSY_REDIRECT_URI` | URL HTTPS enregistrée, finissant par `/api/oauth/etsy/callback` |
-| `EBAY_CLIENT_ID` / `EBAY_CLIENT_SECRET` | Clés du même environnement eBay |
-| `EBAY_REDIRECT_URI` | **RuName** du portail eBay, pas l'URL du callback |
-| `EBAY_SANDBOX` | `true` par défaut ; `false` sélectionne les endpoints OAuth production |
-
-### OpenAI
-
-Renseigner **les deux** variables OpenAI. Le serveur transmet les données à Responses avec `store:false` et un schéma JSON strict. Le modèle rédige titre, description et tags. Prix, matériaux, variantes et images restent calculés localement ou issus de la source. Une erreur IA n'est pas silencieusement remplacée par la démo. Les messages amont confidentiels ne sont pas renvoyés au navigateur.
-
-Il s'agit de l'API OpenAI, pas d'une automatisation de chatgpt.com. L'abonnement ChatGPT ne configure pas la clé API du serveur. Tant que la clé et le modèle manquent, l'interface indique « Mode démo » et aucun modèle n'est appelé.
-
-Le prompt traite les imports comme des données non fiables et interdit d'en suivre les instructions. Relire les faits générés. Le navigateur charge les images HTTPS saisies auprès de leurs hébergeurs ; le serveur ne télécharge pas d'URL utilisateur.
-
-### Etsy OAuth
-
-Créer une application dans le portail développeur. Enregistrer une URL **HTTPS** exacte et utiliser la même origine publique pour `APP_URL`. Etsy refuse les redirections HTTP : le mode local HTTP sert à la démo. Utiliser un reverse proxy HTTPS pour OAuth. Scopes : `listings_r listings_w shops_r`.
-
-Ouvrir **Connexions → Connecter Etsy**. Le serveur vérifie `state`, PKCE, durée et usage unique. Pour les futurs appels API, prévoir `Authorization: Bearer …` et `x-api-key: keystring:shared_secret` côté serveur.
-
-### eBay OAuth
-
-Créer les clés Sandbox et un RuName. Enregistrer dans ce RuName l'URL de retour `https://votre-domaine/api/oauth/ebay/callback`. Configurer `EBAY_REDIRECT_URI` avec le **RuName**, puis connecter le compte Sandbox. La portée actuelle est `sell.inventory` ; ajouter `sell.account` et refaire le consentement si la récupération des politiques vendeur est implémentée.
-
-Les échanges OAuth sont testés avec des réponses simulées, pas avec des comptes réels faute d'identifiants. Une connexion n'active aucune annonce.
-
-## Prix
-
-```text
-prix = arrondi supérieur au centime de ((coût + livraison) × coefficient / (1 − frais / 100))
-résultat = prix × (1 − frais / 100) − coût − livraison
-```
-
-8,50 €, coefficient 2,4, livraison 0 €, frais 13 % donnent **23,45 €**, résultat estimé **11,90 €**. Les frais par défaut sont une hypothèse, pas un barème officiel. Fiscalité, retours, publicité, frais fixes et change sont exclus. Sans coût : prix zéro à compléter. Après changement de devise : estimation à recalculer. Une plage de prix fournisseur utilise le premier montant, à vérifier pour chaque variante.
-
-## Sécurité et stockage
-
-- Liste fixe de fichiers publics : aucun accès HTTP à `.env`, `.data` ou au code serveur.
-- Secrets serveur ; jetons OAuth en mémoire associés à un cookie aléatoire `HttpOnly`, `SameSite=Lax`, `Secure` sous HTTPS.
-- Vérification d'hôte, origine et jeton CSRF ; 30 écritures/minute/session ; taille de requête bornée.
-- CSP sans scripts inline ; valeurs rendues via `textContent`, jamais via HTML fournisseur.
-- `.data/drafts.json` : écriture sérialisée avec remplacement atomique, 200 derniers brouillons conservés. Sauvegarder ce répertoire. Une seule instance serveur doit y accéder.
-- Brouillons communs à l'espace personnel ; connexions propres à la session navigateur. Aucun identifiant API ajouté aux brouillons par l'application.
-- `.env` et `.data` sont ignorés par Git. Ne jamais committer de secret.
-- Par défaut, garder le serveur local. Pour l'exposer : mot de passe fort, HTTPS, proxy conservant le Host exact et limites de requêtes en frontal. Ne pas journaliser les URL complètes des callbacks OAuth. Basic derrière TLS convient à un atelier personnel, pas à un service multiclient.
-
-## Organisation et tests
-
-`public/` : interface, exemple et illustration. `server/listing.js` : import, validation, prix et plans. `server/generate.js` : démo et IA. `server/oauth.js` : OAuth. `server/index.js` : HTTP, sessions, CSRF et stockage. `test/` : tests sans réseau externe ni clés.
-
-`node --test` couvre les imports du bridge, prix, données invalides, URL dangereuses, contrat IA, refus, PKCE, état OAuth invalide/rejoué, eBay, persistance HTTP, CSRF, fichiers privés et blocage de publication réelle.
-
-## Références
-
-- [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
-- [Authentification Etsy](https://developers.etsy.com/documentation/essentials/authentication/)
-- [Fiches Etsy](https://developers.etsy.com/documentation/tutorials/listings/)
-- [Autorisation eBay](https://developer.ebay.com/develop/guides/sell/authorization)
-- [Champs de publication eBay](https://developer.ebay.com/api-docs/sell/static/inventory/publishing-offers.html)
-
-Vérifier les critères de chaque marketplace, les caractéristiques du produit et les droits sur les images avant publication. Un produit revendu ne devient pas fait main.
+Références : [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs), [OAuth Etsy](https://developers.etsy.com/documentation/essentials/authentication/), [fiches Etsy](https://developers.etsy.com/documentation/tutorials/listings/), [autorisation eBay](https://developer.ebay.com/develop/guides/sell/authorization), [publication eBay](https://developer.ebay.com/api-docs/sell/static/inventory/publishing-offers.html), [installation Chromium](https://playwright.dev/docs/browsers).
