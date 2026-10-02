@@ -4,10 +4,10 @@ import {allowedResource,renderProduct} from '../server/browser-import.js';
 import {importUrl,extractProduct} from '../server/aliexpress.js';
 
 const url=new URL('https://www.aliexpress.com/item/123456789.html');
-function fixture({dom,html='',redirect=url.href,failGoto=false}={}) {
+function fixture({dom,html='',redirect=url.href,lateRedirect,failGoto=false}={}) {
   const calls={closed:0};
   const page={on(){},async goto(){if(failGoto)throw Error('navigation failed');},url:()=>redirect,
-    async waitForFunction(){calls.waited=true;},async evaluate(){return dom || {sourceTitle:'Produit rendu',prices:['19,95 €'],images:['https://ae01.aliexpress-media.com/kf/test.jpg'],variants:['Bleu']};},async content(){return html;}};
+    async waitForFunction(){calls.waited=true;if(lateRedirect)redirect=lateRedirect;},async evaluate(){return dom || {sourceTitle:'Produit rendu',prices:['19,95 €'],images:['https://ae01.aliexpress-media.com/kf/test.jpg'],variants:['Bleu']};},async content(){return html;}};
   const context={async route(pattern,fn){calls.route=fn;},async routeWebSocket(){},async newPage(){return page;}};
   const browser={async newContext(options){calls.options=options;return context;},async close(){calls.closed++;}};
   return {calls,chromium:{async launch(opts){calls.launch=opts;return browser;}}};
@@ -28,9 +28,15 @@ test('lit le DOM après attente et ferme le navigateur après succès',async()=>
   let blocked=false;await f.calls.route({request:()=>({url:()=> 'http://localhost/private'}),abort:async()=>{blocked=true;}});assert.equal(blocked,true);
 });
 test('CAPTCHA et redirection login arrêtent l’extraction sans les franchir',async()=>{
-  for(const opts of [{dom:{barrier:true}},{redirect:'https://www.aliexpress.com/login.html'}]){
+  for(const opts of [{dom:{barrier:true}},{redirect:'https://www.aliexpress.com/login.html'},{redirect:'https://evil.test/item/123.html'},{lateRedirect:'https://www.aliexpress.com/punish'}]){
     const f=fixture(opts);await assert.rejects(()=>renderProduct(url,{}, {...f,extractProduct}),/vérification/);assert.equal(f.calls.closed,1);
   }
+});
+
+test('le navigateur accepte les mêmes variantes régionales de fiche produit',async()=>{
+  const f=fixture({redirect:'https://de.aliexpress.com/i/123.html/?gatewayAdapt=glo2deu'});
+  const result=await renderProduct(url,{}, {...f,extractProduct});
+  assert.equal(result.method,'browser');assert.equal(f.calls.closed,1);
 });
 test('fermeture après erreur, données manquantes et installation manquante',async()=>{
   for(const opts of [{failGoto:true},{dom:{sourceTitle:'Chargement',prices:[],images:[]}}]){

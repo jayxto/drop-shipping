@@ -1,4 +1,5 @@
 import { InputError, parseImport } from './listing.js';
+import { productRedirect } from './aliexpress-url.js';
 
 let active = 0;
 // Only resources owned by the marketplace/CDN are allowed. No arbitrary URL proxy.
@@ -55,7 +56,7 @@ export async function renderProduct(url, env=process.env, dependencies={}) {
       page.on('popup',popup=>void popup.close());
       await page.goto(url.href,{waitUntil:'domcontentloaded',timeout:25000});
       // Stop at explicit login/challenge redirects rather than extracting them as a product.
-      if(!/^\/item\/\d+\.html$/.test(new URL(page.url()).pathname))throw new InputError('AliExpress demande une connexion ou une vérification. Ouvrez le produit dans votre navigateur et utilisez l’extension.',422);
+      productRedirect(page.url(),url);
       try {
         await page.waitForFunction(()=>{
           const blocks=[...document.querySelectorAll('script[type="application/ld+json"]')];
@@ -63,6 +64,7 @@ export async function renderProduct(url, env=process.env, dependencies={}) {
           return Boolean(document.querySelector('h1') && document.querySelector('[class*="price--current"],[class*="price-current"],[class*="price-default"],[class*="price--sale"]') && [...document.images].some(i=>i.complete && i.naturalWidth>=180)) || /security verification|slide to verify|access denied/i.test(document.body?.innerText || '');
         },null,{timeout:15000});
       }catch{/* Inspect the final DOM and report missing data instead of inventing a product. */}
+      productRedirect(page.url(),url);
       const dom=await page.evaluate(readRenderedProduct);
       if(dom.barrier)throw new InputError('AliExpress affiche une vérification de sécurité. Le navigateur automatique ne la franchit pas. Utilisez votre navigateur et l’extension.',422);
       const html=await page.content();

@@ -37,7 +37,9 @@ Une modification de fiche déjà publiée n'est pas synchronisée vers la market
 
 ## Import AliExpress
 
-Coller l'URL complète HTTPS `/item/<id>.html`. Le serveur ouvre un contexte Chromium neuf, attend les données JavaScript, lit JSON-LD/Open Graph ou le DOM. Aucun cookie/profil personnel n'est importé. Deux imports simultanés, lancement borné à 15 s puis chargement à 45 s ; navigateur fermé après chaque requête. Les ressources sont limitées aux domaines marketplace/CDN HTTPS. Service workers, WebSockets et téléchargements sont bloqués.
+Coller une URL HTTPS de fiche produit sur `aliexpress.com` ou `aliexpress.us`, y compris leurs sous-domaines régionaux et mobiles. Les chemins `/item/<id>` et `/i/<id>`, avec ou sans `.html` et barre finale, sont normalisés en `/item/<id>.html` ; les paramètres de suivi et fragments du lien saisi sont retirés. Les liens courts de partage doivent être ouverts pour copier l'URL de la fiche. Le serveur ouvre un contexte Chromium neuf, attend les données JavaScript, lit JSON-LD/Open Graph ou le DOM. Aucun cookie/profil personnel n'est importé. Deux imports simultanés, lancement borné à 15 s puis chargement à 45 s ; navigateur fermé après chaque requête. Les ressources sont limitées aux domaines marketplace/CDN HTTPS. Service workers, WebSockets et téléchargements sont bloqués.
+
+En mode métadonnées, seules les redirections HTTPS vers une fiche produit de ces domaines sont suivies, avec leurs paramètres et dans une limite de quatre requêtes. Les redirections vers une connexion, une vérification ou une destination non autorisée produisent une erreur d'accès AliExpress (422), sans présenter le lien saisi comme invalide.
 
 AliExpress peut demander un CAPTCHA/une connexion ou bloquer les serveurs : l'application s'arrête explicitement, sans contournement ni données inventées. Le lien réel fourni n'a pas pu être vérifié dans cette session car l'outil de navigation en bloquait l'accès. Une fixture locale JavaScript a validé le lecteur DOM.
 

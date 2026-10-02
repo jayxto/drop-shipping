@@ -1,15 +1,8 @@
 import { InputError, parseImport } from './listing.js';
 import { renderProduct } from './browser-import.js';
+import { productUrl, productRedirect } from './aliexpress-url.js';
+export { productUrl } from './aliexpress-url.js';
 
-const hosts = new Set(['aliexpress.com','www.aliexpress.com','fr.aliexpress.com','m.aliexpress.com','aliexpress.us','www.aliexpress.us']);
-export function productUrl(value) {
-  let u;
-  try { u=new URL(value); } catch { throw new InputError('Collez une URL AliExpress valide.'); }
-  if(u.protocol!=='https:' || !hosts.has(u.hostname) || u.port || u.username || u.password || !/^\/item\/\d+\.html$/.test(u.pathname)) {
-    throw new InputError('Utilisez le lien complet HTTPS de la fiche AliExpress : https://www.aliexpress.com/item/123456789.html');
-  }
-  u.search='';u.hash='';return u;
-}
 const decode = value => String(value || '').replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#(\d+);/g,(_,n)=>Number(n)<=0x10ffff?String.fromCodePoint(Number(n)):'');
 function attributes(tag) {
   const attrs={};
@@ -70,13 +63,13 @@ export async function importUrl(value,env=process.env,request=fetch,browserImpor
     for(let redirects=0;redirects<4;redirects++) {
       const response=await request(current,{redirect:'manual',signal:AbortSignal.timeout(20000),headers:{Accept:'text/html','Accept-Language':'fr-FR,fr;q=0.9,en;q=0.8','User-Agent':'DropStudio/1.0 (product metadata importer)'}});
       if([301,302,303,307,308].includes(response.status)) {
-        await response.body?.cancel();current=productUrl(new URL(response.headers.get('location'),current).href);continue;
+        await response.body?.cancel();current=productRedirect(response.headers.get('location'),current);continue;
       }
       if(!response.ok)throw new InputError('AliExpress bloque l’import direct de ce lien. Utilisez un service d’extraction configuré ou l’import via extension.',422);
       const source=extractProduct(await limitedText(response),url.href);
       return {source,method:'metadata',warnings:['Import des informations publiques : vérifiez le prix, les images et les variantes avant utilisation.',...(source.cost===null?['Prix absent : renseignez le coût fournisseur.']:[])]};
     }
-    throw new InputError('Trop de redirections AliExpress. Utilisez le lien complet du produit.',422);
+    throw new InputError('AliExpress redirige en boucle ou trop de fois. Ouvrez la fiche dans votre navigateur et utilisez l’import via extension.',422);
   } catch(e) {
     if(e instanceof InputError)throw e;
     throw new InputError('Impossible de récupérer cette annonce. AliExpress peut exiger un navigateur. Configurez le service d’extraction ou utilisez l’extension.',502);
