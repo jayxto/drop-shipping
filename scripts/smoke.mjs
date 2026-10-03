@@ -1,0 +1,38 @@
+import {chromium} from 'playwright';
+import {mkdtemp,rm} from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {createApp} from '../server/index.js';
+const dataDir=await mkdtemp(path.join(os.tmpdir(),'drop-ui-'));
+const server=createApp({dataDir,env:{APP_URL:'http://localhost:3107'}});
+let browser;
+try {
+  await new Promise(r=>server.listen(3107,'127.0.0.1',r));
+  await server.workflow.receive({product:{sourceUrl:'https://fr.aliexpress.com/item/100500123456789.html',sourceTitle:'Collier fleur en acier',price:4.28,specifics:{Matériau:'Acier'},sourceImages:[]}},'smoke-import-0000001');
+  await server.workflow.idle();
+  browser=await chromium.launch({headless:true,...(process.env.UI_BROWSER_CHANNEL?{channel:process.env.UI_BROWSER_CHANNEL}:{})});
+  const page=await browser.newPage({viewport:{width:1440,height:1100}}),errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://localhost:3107');
+  await page.getByText('Ouvrir la fiche modifiable',{exact:true}).click();
+  await page.locator('#title').fill('Collier corrigé dans le navigateur');
+  await page.getByRole('button',{name:'Enregistrer le brouillon',exact:true}).click();
+  await page.getByText('Brouillon enregistré sur ce serveur.',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Préparer le brouillon ebay',exact:true}).click();
+  await page.locator('#publishResult').getByText('Brouillon préparé et enregistré localement. Aucune annonce envoyée.',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Réglages',exact:false}).click();
+  await page.locator('#globalPrompt').fill('Mon style exact, fond crème et lumière douce.');
+  await page.getByRole('button',{name:'Enregistrer les modèles',exact:true}).click();
+  await page.getByText('Style enregistré. Il sera utilisé pour les nouveaux imports.',{exact:true}).waitFor();
+  await page.reload();
+  await page.waitForFunction(()=>document.getElementById('globalPrompt')?.value==='Mon style exact, fond crème et lumière douce.');
+  assert.equal(await page.locator('#globalPrompt').inputValue(),'Mon style exact, fond crème et lumière douce.');
+  await page.getByText('Ouvrir la fiche modifiable',{exact:true}).click();
+  await page.locator('#editor').waitFor({state:'visible'});
+  assert.equal(await page.locator('#title').inputValue(),'Collier corrigé dans le navigateur');
+  await page.screenshot({path:'../ui-desktop.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'../ui-mobile.png',fullPage:true});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'mobile overflow');
+  assert.deepEqual(errors,[]);console.log('Browser smoke passed: import, gallery, edit, save, draft preparation, prompt persistence, reload and mobile layout.');
+}finally{await browser?.close();await new Promise(r=>server.close(r));await rm(dataDir,{recursive:true,force:true});}
