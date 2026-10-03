@@ -1,4 +1,7 @@
-ALIEXPRESS → DROP STUDIO → ETSY / EBAY — V3 (manifest 0.3.0)
+ALIEXPRESS → DROP STUDIO → ETSY / EBAY — V3.0.1 (manifest 0.3.1)
+
+CORRECTIF 0.3.1
+Les onglets AliExpress déjà ouverts avant installation/rechargement sont maintenant pris en charge : le bouton réinstalle automatiquement le lecteur de produit si la connexion à l'onglet manque. Si l'accès au site est refusé, un message explique comment l'autoriser. Pour mettre à jour, remplace les fichiers dans le dossier chargé puis clique sur Recharger dans la page des extensions ; accepte la nouvelle permission si le navigateur le demande.
 
 NOUVEAU PARCOURS RECOMMANDÉ
 1. Décompresse le ZIP et charge ce dossier dans chrome://extensions ou edge://extensions (mode développeur).

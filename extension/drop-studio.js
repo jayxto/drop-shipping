@@ -20,13 +20,10 @@ document.getElementById('sendStudio').onclick=async()=>{
   const b=document.getElementById('sendStudio');b.disabled=true;studioStatus.textContent='Envoi du produit…';
   try {
     const tab=(await chrome.tabs.query({active:true,currentWindow:true}))[0];
-    const url=new URL(tab?.url||'');
-    if(!/(^|\.)aliexpress\.(com|us)$/.test(url.hostname) || !/^\/(item|i)\/\d+(\.html)?\/?$/.test(url.pathname))throw Error('Ouvrez une fiche produit AliExpress.');
     // Always read the active product; never silently send a stale saved product.
-    const result=await chrome.tabs.sendMessage(tab.id,{type:'ALI_SCRAPE'});
-    if(!result?.ok)throw Error('Extraction impossible. Rechargez la page produit.');
-    const same=source?.sourceUrl===result.data.sourceUrl;
-    const product=same?{...result.data,sourceTitle:document.getElementById('rawTitle').value,price:document.getElementById('rawPrice').value,shipping:[document.getElementById('shipping').value],selectedImages:selectedImages()} : result.data;
+    const data=await readAliExpressProduct(tab);
+    const same=source?.sourceUrl===data.sourceUrl;
+    const product=same?{...data,sourceTitle:document.getElementById('rawTitle').value,price:document.getElementById('rawPrice').value,shipping:[document.getElementById('shipping').value],selectedImages:selectedImages()} : data;
     const response=await chrome.runtime.sendMessage({type:'DROP_STUDIO_SEND',product});
     if(!response?.ok)throw Error(response?.error||'Envoi interrompu. Réessayez : les doublons sont détectés.');
     studioStatus.textContent='Import enregistré. La génération continue dans Drop Studio.';

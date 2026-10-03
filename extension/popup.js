@@ -33,14 +33,14 @@ function selectedImages(){
   return [...document.querySelectorAll(".imgcheck:checked")].map(x=>source.images[+x.dataset.i]);
 }
 $("scrape").onclick=async()=>{
-  let t=await active();
-  if(!/aliexpress\./i.test(t?.url||"")) return $("status").textContent="Ouvre d'abord une fiche produit AliExpress.";
+  $("scrape").disabled=true;
   $("status").textContent="Scan de la page…";
-  chrome.tabs.sendMessage(t.id,{type:"ALI_SCRAPE"},async r=>{
-    if(chrome.runtime.lastError||!r?.ok){$("status").textContent="Le scan a échoué. Recharge la fiche puis réessaie.";return}
-    source=r.data; await chrome.storage.local.set({source}); renderSource(source);
+  try {
+    source=await readAliExpressProduct(await active());
+    await chrome.storage.local.set({source}); renderSource(source);
     $("status").textContent="Produit scrapé ✓";
-  });
+  }catch(e){$("status").textContent=e.message;}
+  finally{$("scrape").disabled=false;}
 };
 $("selectAll").onclick=()=>document.querySelectorAll(".imgcheck").forEach(x=>x.checked=true);
 $("selectNone").onclick=()=>document.querySelectorAll(".imgcheck").forEach(x=>x.checked=false);

@@ -4,6 +4,27 @@ import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {webcrypto} from 'node:crypto';
 const code=await readFile(new URL('../extension/background.js',import.meta.url),'utf8');
+const bridge=await readFile(new URL('../extension/bridge.js',import.meta.url),'utf8');
+const aliScript=await readFile(new URL('../extension/aliexpress.js',import.meta.url),'utf8');
+const productTab={id:42,url:'https://fr.aliexpress.com/item/100500123456789.html'};
+test('already-open AliExpress tab recovers its missing receiver once, then reads the current product',async()=>{
+  let sends=0,injections=0;const product={sourceTitle:'Current product'};
+  const context=vm.createContext({URL,chrome:{tabs:{sendMessage:async id=>{assert.equal(id,42);if(++sends===1)throw Error('Could not establish connection. Receiving end does not exist.');return {ok:true,data:product};}},scripting:{executeScript:async options=>{injections++;assert.equal(options.target.tabId,42);assert.equal(options.files[0],'aliexpress.js');}}}});
+  vm.runInContext(bridge,context);
+  assert.equal(await context.readAliExpressProduct(productTab),product);assert.equal(injections,1);assert.equal(sends,2);
+  await context.readAliExpressProduct(productTab);assert.equal(injections,1);
+});
+test('recovery refuses other sites and reports blocked access without an endless retry',async()=>{
+  let injections=0,sends=0;
+  const context=vm.createContext({URL,chrome:{tabs:{sendMessage:async()=>{sends++;throw Error('Receiving end does not exist.');}},scripting:{executeScript:async()=>{injections++;throw Error('Access denied');}}}});vm.runInContext(bridge,context);
+  await assert.rejects(context.readAliExpressProduct({id:42,url:'https://aliexpress.com.evil.test/item/123.html'}),/fiche produit/);assert.equal(sends,0);
+  await assert.rejects(context.readAliExpressProduct(productTab),/Autorisez l’extension/);assert.equal(injections,1);assert.equal(sends,1);
+});
+test('reinjected extractor registers only one listener and still extracts the product',()=>{
+  const listeners=new Set();const context=vm.createContext({location:{href:productTab.url},document:{images:[],title:'Collier',querySelector:()=>null,querySelectorAll:()=>[]},chrome:{runtime:{onMessage:{addListener:fn=>listeners.add(fn),removeListener:fn=>listeners.delete(fn)}}}});
+  vm.runInContext(aliScript,context);vm.runInContext(aliScript,context);assert.equal(listeners.size,1);
+  let response;[...listeners][0]({type:'ALI_SCRAPE'},null,r=>response=r);assert.equal(response.ok,true);assert.equal(response.data.sourceTitle,'Collier');
+});
 async function worker(fetch) {
   let handler;const store={studioBase:'https://studio.example',studioToken:'test-import-token-'.repeat(3)};
   const chrome={storage:{local:{setAccessLevel:async()=>{},get:async()=>({...store}),set:async patch=>Object.assign(store,patch)}},permissions:{contains:async()=>true},runtime:{id:'extension-id',getURL:p=>'chrome-extension://extension-id/'+p,onMessage:{addListener:fn=>handler=fn}}};

@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="stylesheet" href="style.css">
-<title>Ali → ChatGPT → eBay</title>
+<title>AliExpress → Drop Studio</title>
 </head>
 <body>
 <main>
-  <h1>Ali → ChatGPT → eBay</h1>
+  <h1>AliExpress → Drop Studio</h1>
   <p class="sub">Bridge v3 · Drop Studio</p><details><summary>Connexion Drop Studio</summary><label>Adresse du studio<input id="studioBase" type="url" placeholder="https://votre-studio.onrender.com"></label><label>Jeton d’import (pas une clé OpenAI)<input id="studioToken" type="password" autocomplete="off"></label><button id="saveStudio">Enregistrer la connexion</button><p>Jeton enregistré localement, accessible uniquement à l’extension. Ne le partagez pas.</p></details><button id="sendStudio" class="primary">Envoyer à Drop Studio</button><p id="studioStatus" role="status" aria-live="polite"></p>
 
   <div class="tabs">
@@ -64,6 +64,7 @@
     <p class="note">L'extension ne clique jamais sur « Publier ». Tu gardes la validation finale.</p>
   </section>
 </main>
+<script src="bridge.js"></script>
 <script src="popup.js"></script>
 <script src="drop-studio.js"></script>
 </body>

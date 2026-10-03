@@ -1,3 +1,4 @@
+(() => {
 const uniq=a=>[...new Set(a.filter(Boolean))];
 const text=e=>(e?.innerText||e?.textContent||"").trim();
 
@@ -45,4 +46,7 @@ function scrape(){
     prices:prices(),shipping,description:document.querySelector('meta[name="description"]')?.content||title,
     images,variantImages,variants,specifics,scrapedAt:new Date().toISOString()};
 }
-chrome.runtime.onMessage.addListener((m,_s,r)=>{if(m?.type==="ALI_SCRAPE"){try{r({ok:true,data:scrape()})}catch(e){r({ok:false,error:String(e)})}}});
+if(globalThis.dropStudioAliListener)chrome.runtime.onMessage.removeListener(globalThis.dropStudioAliListener);
+globalThis.dropStudioAliListener=(m,_s,r)=>{if(m?.type==="ALI_SCRAPE"){try{r({ok:true,data:scrape()})}catch(e){r({ok:false,error:String(e)})}}};
+chrome.runtime.onMessage.addListener(globalThis.dropStudioAliListener);
+})();
