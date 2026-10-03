@@ -101,3 +101,7 @@ Tests : import URL/bridge, navigateur simulé, prix, IA simulée, PKCE et rejeu,
 `public/` interface ; `server/aliexpress.js` et `browser-import.js` import ; `listing.js` normalisation ; `generate.js` IA ; `oauth.js` connexion/renouvellement ; `storage.js` coffre/journal ; `settings.js` configuration ; `marketplaces.js` publication ; `index.js` HTTP. Contrat : [docs/API.md](docs/API.md).
 
 Références : [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs), [OAuth Etsy](https://developers.etsy.com/documentation/essentials/authentication/), [fiches Etsy](https://developers.etsy.com/documentation/tutorials/listings/), [autorisation eBay](https://developer.ebay.com/develop/guides/sell/authorization), [publication eBay](https://developer.ebay.com/api-docs/sell/static/inventory/publishing-offers.html), [installation Chromium](https://playwright.dev/docs/browsers).
+
+### Connexions Etsy et eBay non configurées
+Dans Connexions, le bouton Configurer ouvre Réglages et les champs manquants sont affichés sans leurs valeurs secrètes. Suivez les liens officiels pour obtenir les identifiants de votre application. Etsy : Keystring et URL HTTPS de retour pour la connexion, Shared secret pour les appels de publication. eBay : App ID, Cert ID et RuName OAuth du même environnement (Sandbox ou Production). Les réglages affichent l’adresse de retour à enregistrer chez chaque fournisseur. Enregistrez puis revenez dans Connexions. Une clé OpenAI ne remplace pas les identifiants des marketplaces.
+

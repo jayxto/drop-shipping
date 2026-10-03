@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { parseImport, validateListing, marketplacePlan, InputError } from './listing.js';
 import { generate } from './generate.js';
-import { beginOAuth, finishOAuth, freshToken } from './oauth.js';
+import { beginOAuth, finishOAuth, freshToken, connectionSetup } from './oauth.js';
 import { importUrl } from './aliexpress.js';
 import {secretStore,jsonStore} from './storage.js';
 import {publicSettings,settingsPatch} from './settings.js';
@@ -93,7 +93,7 @@ export function createApp({ env:baseEnv=process.env, dataDir=baseEnv.DATA_DIR ||
         if(s.requests.length>=30) throw new InputError('Trop de requêtes. Patientez une minute.',429);
         s.requests.push(Date.now());
       }
-      if(route==='/api/config' && req.method==='GET') return send(200,{csrf:s.csrf, generation:env.OPENAI_API_KEY && env.OPENAI_MODEL?'openai':'demo', marketplaceMode:env.MARKETPLACE_MODE || 'demo',ebaySandbox:env.EBAY_SANDBOX!=='false',connections:Object.fromEntries(['etsy','ebay'].map(m=>[m,Boolean(secrets.tokens[m] && (secrets.tokens[m].expires>Date.now() || secrets.tokens[m].refreshToken))]))});
+      if(route==='/api/config' && req.method==='GET') return send(200,{csrf:s.csrf, generation:env.OPENAI_API_KEY && env.OPENAI_MODEL?'openai':'demo', marketplaceMode:env.MARKETPLACE_MODE || 'demo',ebaySandbox:env.EBAY_SANDBOX!=='false',connectionSetup:Object.fromEntries(['etsy','ebay'].map(m=>[m,connectionSetup(m,env)])),connections:Object.fromEntries(['etsy','ebay'].map(m=>[m,Boolean(secrets.tokens[m] && (secrets.tokens[m].expires>Date.now() || secrets.tokens[m].refreshToken))]))});
       if(route==='/api/settings' && req.method==='GET')return send(200,{fields:publicSettings(env)});
       if(route==='/api/image-templates' && req.method==='GET')return send(200,{templates:await workflow.getTemplates(),imageMode:baseEnv.OPENAI_API_KEY && baseEnv.IMAGE_MODE!=='demo'?'openai':'demo'});
       if(route==='/api/image-templates' && req.method==='POST')return send(200,{templates:await workflow.setTemplates((await body(req)).templates)});

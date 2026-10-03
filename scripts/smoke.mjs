@@ -15,6 +15,11 @@ try {
   const page=await browser.newPage({viewport:{width:1440,height:1100}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.goto('http://localhost:3107');
+  await page.getByRole('button',{name:'Connexions',exact:false}).click();
+  await page.getByRole('button',{name:'Configurer eBay',exact:true}).click();
+  await page.getByRole('heading',{name:'Configuration',exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Adresse de retour eBay',{exact:true}).inputValue(),'http://localhost:3107/api/oauth/ebay/callback');
+  await page.getByRole('button',{name:'Atelier de fiches',exact:false}).click();
   await page.getByText('Ouvrir la fiche modifiable',{exact:true}).click();
   await page.locator('#title').fill('Collier corrigé dans le navigateur');
   await page.getByRole('button',{name:'Enregistrer le brouillon',exact:true}).click();

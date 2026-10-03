@@ -2,6 +2,14 @@ import { randomBytes, createHash } from 'node:crypto';
 import { InputError } from './listing.js';
 
 const random = () => randomBytes(32).toString('base64url');
+export function connectionSetup(market, env) {
+  provider(market, env);
+  const required = market === 'etsy'
+    ? {ETSY_CLIENT_ID:'Keystring Etsy', ETSY_REDIRECT_URI:'URL de retour Etsy'}
+    : {EBAY_CLIENT_ID:'App ID eBay', EBAY_CLIENT_SECRET:'Cert ID eBay', EBAY_REDIRECT_URI:'RuName eBay'};
+  const missing = Object.entries(required).filter(([key]) => !env[key]?.trim()).map(([,label]) => label);
+  return {ready:missing.length === 0, missing};
+}
 export function provider(market, env) {
   if (!['etsy','ebay'].includes(market)) throw new InputError('Marketplace inconnue.');
   const sandbox = env.EBAY_SANDBOX !== 'false';
@@ -15,7 +23,8 @@ export function provider(market, env) {
 }
 export function beginOAuth(market, session, env) {
   const p = provider(market,env);
-  if (!p.id || !p.redirect || (market === 'ebay' && !p.secret)) throw new InputError('Connexion non configurée. Renseignez les variables serveur décrites dans le README.',409);
+  const setup = connectionSetup(market, env);
+  if (!setup.ready) throw new InputError(`Ouvrez Réglages → ${market === 'etsy' ? 'Etsy' : 'eBay'} et renseignez : ${setup.missing.join(', ')}. Enregistrez, puis revenez dans Connexions.`,409);
   const state = random(), verifier = random();
   session.oauth = { market, state, verifier, expires: Date.now() + 10*60*1000 };
   const u = new URL(p.auth);

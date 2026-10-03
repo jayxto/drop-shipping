@@ -13,7 +13,15 @@ export function updateVariantOptions(listing) {
 export async function loadSettings(api) {
   const {fields}=await api('settings'),root=document.getElementById('settingsFields');root.replaceChildren();const groups={};
   for(const f of fields) {
-    if(!groups[f.group]){const panel=document.createElement('section');panel.className='panel';const h=document.createElement('h2');h.textContent=f.group;panel.append(h);groups[f.group]=panel;root.append(panel);}
+    if(!groups[f.group]){const panel=document.createElement('section');panel.className='panel';const h=document.createElement('h2');h.textContent=f.group;panel.append(h);groups[f.group]=panel;root.append(panel);
+      if(['Etsy','eBay'].includes(f.group)){
+        const market=f.group.toLowerCase(), guide=document.createElement('p'), link=document.createElement('a'), callback=document.createElement('input'), label=document.createElement('label');
+        guide.textContent=market==='etsy'?'Créez une application Etsy et récupérez sa Keystring et son Shared secret. Enregistrez cette URL de retour dans votre application Etsy, puis recopiez-la dans le champ URL HTTPS de retour ci-dessous.':'Dans votre compte développeur eBay, récupérez App ID et Cert ID pour le même environnement que celui choisi ci-dessous. Dans User Tokens, créez un RuName OAuth avec cette URL comme Auth accepted URL. Le champ RuName attend le nom fourni par eBay, pas une URL.';
+        link.href=market==='etsy'?'https://developers.etsy.com/documentation/essentials/authentication/':'https://developer.ebay.com/api-docs/static/oauth-credentials.html';link.textContent=`Obtenir les identifiants ${f.group} ↗`;link.target='_blank';link.rel='noopener noreferrer';
+        label.textContent='Adresse de retour à enregistrer auprès de la marketplace';callback.readOnly=true;callback.value=location.origin+`/api/oauth/${market}/callback`;callback.setAttribute('aria-label',`Adresse de retour ${f.group}`);callback.onclick=()=>callback.select();
+        panel.append(guide,link,label,callback);
+      }
+    }
     const div=document.createElement('div');div.className='field';const label=document.createElement('label');label.htmlFor='setting-'+f.key;label.textContent=f.label;
     const input=document.createElement(f.options?'select':'input');input.id='setting-'+f.key;input.name=f.key;
     if(f.options)for(const value of f.options){const text=f.key==='MARKETPLACE_MODE'?{demo:'Simulation',live:'Vente réelle'}[value]:f.key==='EBAY_SANDBOX'?{true:'Sandbox — compte de test',false:'Production — ventes réelles'}[value]:value;input.append(new Option(text,value));}

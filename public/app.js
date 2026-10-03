@@ -19,7 +19,12 @@ async function refreshConfig() {
   config=await api('config');
   $('mode').textContent=config.generation==='demo'?'● Mode démo':'● IA connectée';
   $('generationHelp').textContent=config.generation==='demo'?'Démo locale · génération déterministe, sans IA':'Génération IA · les données seront transmises à OpenAI';
-  for(const m of ['etsy','ebay']) $(m+'State').textContent=config.connections[m]?'Connecté · enregistré sur le serveur':'Non connecté';
+  for(const m of ['etsy','ebay']) {
+    const setup=config.connectionSetup[m], button=document.querySelector(`[data-connect="${m}"]`);
+    $(m+'State').textContent=config.connections[m]?'Connecté · enregistré sur le serveur':setup.ready?'Prêt à connecter votre compte vendeur':`À configurer : ${setup.missing.join(', ')}.`;
+    button.textContent=setup.ready?`Connecter ${m==='etsy'?'Etsy':'eBay'}`:`Configurer ${m==='etsy'?'Etsy':'eBay'}`;
+  }
+  document.querySelector('[data-connect="ebay"]').closest('.panel').querySelector('h2 + p').textContent=config.ebaySandbox?'Compte eBay de test (Sandbox). Pour votre boutique réelle, choisissez Production dans Réglages.':'Compte eBay de votre boutique réelle (Production).';
   const demo=config.marketplaceMode==='demo';
   document.querySelector('.publish-panel .pill').textContent=demo?'MODE TEST':'PUBLICATION';
   document.querySelector('.publish-panel .subtext').textContent=demo?'Testez le parcours d’envoi. Aucune annonce ne sera mise en ligne.':`Un récapitulatif sera demandé avant l’envoi. eBay : ${config.ebaySandbox?'Sandbox (test)':'production'}. Etsy : boutique réelle.`;
@@ -185,6 +190,7 @@ for(const market of ['etsy','ebay']){
 $('settingsForm').onsubmit=async e=>{e.preventDefault();const button=e.submitter;button.disabled=true;try{await api('settings',{settings:Object.fromEntries(new FormData(e.target))});await refreshConfig();await loadSettings(api);notify('Réglages enregistrés.');}catch(e){notify(e.message,true);}finally{button.disabled=false;}};
 $('refreshHistory').onclick=()=>loadHistory(api).catch(e=>notify(e.message,true));
 document.querySelectorAll('[data-connect]').forEach(b=>b.onclick=async()=>{
+  if(!config.connectionSetup[b.dataset.connect].ready){page('settings');return;}
   b.disabled=true;try{const {url}=await api(`oauth/${b.dataset.connect}/start`,{});window.location.assign(url);}catch(e){notify(e.message,true);b.disabled=false;}
 });
 document.querySelectorAll('[data-disconnect]').forEach(b=>b.onclick=async()=>{

@@ -63,5 +63,5 @@ test('OAuth eBay utilise RuName, Basic côté serveur et sandbox par défaut',as
   await finishOAuth('ebay',session,new URLSearchParams({state:session.oauth.state,code:'code'}),env,async(url,opts)=>{
     assert.equal(new URL(url).hostname,'api.sandbox.ebay.com');assert.ok(opts.headers.Authorization.startsWith('Basic '));return {ok:true,json:async()=>({access_token:'test-token'})};
   });
-  assert.throws(()=>beginOAuth('etsy',{tokens:{}},{}),/non configurée/);
+  assert.throws(()=>beginOAuth('etsy',{tokens:{}},{}),/Réglages → Etsy/);
 });
