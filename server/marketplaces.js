@@ -1,11 +1,16 @@
 import {createHash} from 'node:crypto';
 import {InputError,validateListing} from './listing.js';
+import {readFile} from 'node:fs/promises';
+import path from 'node:path';
 
 const identifier=v=>typeof v==='string' && /^[A-Za-z0-9_-]{1,100}$/.test(v);
 const numberId=v=>/^\d+$/.test(String(v || ''));
 const escapeHTML=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function preparePublication(market,input,env) {
   const l=validateListing(input),missing=[];
+  const studioOrigin=env.APP_URL || env.RENDER_EXTERNAL_URL;
+  l.images=l.images.map(u=>u.startsWith('/media/') && studioOrigin?new URL(u,studioOrigin).href:u);
+  if(l.images.some(u=>!u.startsWith('https:') || u.endsWith('.svg')))missing.push('Remplacer les images démo et utiliser une adresse publique HTTPS pour le studio');
   if(!/^[\da-f-]{36}$/i.test(l.id || ''))missing.push('Identifiant de fiche valide');
   if(l.price<=0)missing.push('Prix supérieur à zéro');
   if(!l.images.length)missing.push('Au moins une image');
@@ -32,7 +37,7 @@ export function preparePublication(market,input,env) {
     if(!env.ETSY_CLIENT_ID || !env.ETSY_SHARED_SECRET)missing.push('Identifiants API Etsy');
     if(l.currency!==(env.ETSY_CURRENCY || 'EUR'))missing.push('La devise doit correspondre à celle de la boutique Etsy');
     if(l.images.length>10)missing.push('Maximum 10 images dans cet adaptateur Etsy');
-    if(l.images.some(u=>!imageAllowed(u)))missing.push('Pour Etsy, utiliser les images HTTPS AliExpress (aliexpress-media.com ou alicdn.com)');
+    if(l.images.some(u=>!imageAllowed(u) && !studioAsset(u,env)))missing.push('Pour Etsy, utiliser les images HTTPS AliExpress ou PNG/JPEG générées par ce studio');
   } else throw new InputError('Marketplace inconnue.');
   if(missing.length)throw new InputError('À compléter : '+missing.join(' · '),422);
   return {listing:l,title,description,selected,market,sandbox:market==='ebay' && env.EBAY_SANDBOX!=='false',summary:{title,price:l.price,currency:l.currency,quantity:l.quantity,variant:selected || 'Sans variante',images:l.images.length}};
@@ -40,7 +45,12 @@ export function preparePublication(market,input,env) {
 export function imageAllowed(value) {
   try {const u=new URL(value);return u.protocol==='https:' && !u.port && !u.username && !u.password && ['aliexpress-media.com','alicdn.com'].some(d=>u.hostname===d || u.hostname.endsWith('.'+d));}catch{return false;}
 }
-export async function downloadImage(url,request=fetch) {
+function studioAsset(value,env={}) {
+  try{const origin=new URL(env.APP_URL || env.RENDER_EXTERNAL_URL),u=new URL(value);return u.origin===origin.origin && !u.search && !u.hash && /^\/media\/[a-f0-9-]{36}\.(png|jpg)$/.test(u.pathname)?u.pathname.split('/').pop():null;}catch{return null;}
+}
+export async function downloadImage(url,request=fetch,env={}) {
+  const asset=studioAsset(url,env);
+  if(asset && env.DATA_DIR){const data=await readFile(path.join(env.DATA_DIR,'media',asset));if(data.length>8000000)throw new InputError('Image supérieure à 8 Mo.',422);return {data,type:asset.endsWith('.png')?'image/png':'image/jpeg',ext:asset.split('.').pop()};}
   for(let n=0;n<4;n++) {
     if(!imageAllowed(url))throw new InputError('Hébergeur image non autorisé.',422);
     const res=await request(url,{redirect:'manual',signal:AbortSignal.timeout(15000)});
@@ -102,7 +112,7 @@ export function publisher(journal,request=fetch) {
         result={published:true,sandbox,market,listingId:published.listingId,url:`https://www.${sandbox?'sandbox.':''}ebay.fr/itm/${encodeURIComponent(published.listingId)}`};
       }else{
         // Download all images before creating a paid listing; no secrets sent to image hosts.
-        const images=[];for(const image of l.images)images.push(await downloadImage(image,request));
+        const images=[];for(const image of l.images)images.push(await downloadImage(image,request,env));
         const base=`/shops/${env.ETSY_SHOP_ID}/listings`;
         const draft=await step('brouillon',async()=>requireId(await api('POST',base,{quantity:l.quantity,title,description,price:l.price,who_made:l.whoMade,when_made:l.whenMade,is_supply:l.isSupply,taxonomy_id:Number(l.category),shipping_profile_id:Number(env.ETSY_SHIPPING_PROFILE_ID),readiness_state_id:Number(env.ETSY_READINESS_STATE_ID),return_policy_id:Number(env.ETSY_RETURN_POLICY_ID),tags:l.tags,materials:l.materials,type:'physical'}),'listing_id'));
         for(let i=0;i<images.length;i++)await step('image-'+(i+1),async()=>{const form=new FormData();form.set('image',new Blob([images[i].data],{type:images[i].type}),`product-${i+1}.${images[i].ext}`);form.set('rank',String(i+1));return requireId(await api('POST',`${base}/${draft.listing_id}/images`,form),'listing_image_id');});

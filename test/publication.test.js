@@ -16,7 +16,7 @@ async function temp(fn){const dir=await mkdtemp(path.join(os.tmpdir(),'drop-publ
 test('coffre chiffré persistant, écritures concurrentes et secrets non réaffichés',()=>temp(async dir=>{
   const store=secretStore(dir);await Promise.all([store.update(d=>{d.settings.OPENAI_API_KEY='not-a-real-secret';}),store.update(d=>{d.tokens.ebay={accessToken:'not-a-real-token'};})]);
   const disk=await readFile(path.join(dir,'vault.enc'),'utf8');assert.ok(!disk.includes('not-a-real'));const second=secretStore(dir);assert.equal((await second.load()).settings.OPENAI_API_KEY,'not-a-real-secret');
-  assert.equal(publicSettings({OPENAI_API_KEY:'secret'}).find(f=>f.key==='OPENAI_API_KEY').value,'');assert.deepEqual(settingsPatch({OPENAI_API_KEY:''}),{});assert.throws(()=>settingsPatch({APP_PASSWORD:'evil'}));
+  assert.equal(publicSettings({OPENAI_API_KEY:'secret'}).find(f=>f.key==='OPENAI_API_KEY'),undefined);assert.throws(()=>settingsPatch({OPENAI_API_KEY:''}));assert.throws(()=>settingsPatch({APP_PASSWORD:'evil'}));
 }));
 test('validation réelle : consentement, variante, stock, titre et Etsy',()=>{
   assert.equal(preparePublication('ebay',base(),env).sandbox,true);

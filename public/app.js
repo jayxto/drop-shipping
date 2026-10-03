@@ -1,4 +1,5 @@
 import {mountWorkspace,updateVariantOptions,loadSettings,loadHistory,confirmPublication} from './workspace.js';
+import {mountWorkflow} from './workflow.js';
 mountWorkspace();
 const $ = id => document.getElementById(id);
 let config, listing, drafts = [], busy = false, noticeTimer;
@@ -96,7 +97,7 @@ function updatePreview() {
   $('profit').textContent=listing.source?.cost==null || listing.currency!==listing.source.currency?'À recalculer':money(listing.price*(1-(p?.fees || 0)/100)-listing.source.cost-(p?.shipping || 0));
 }
 function renderImages() {
-  const images=listing.images.filter(u=>{try{return new URL(u).protocol==='https:';}catch{return false;}});
+  const images=listing.images.filter(u=>{try{return /^\/media\/[a-f0-9-]{36}\.(png|jpg|webp|svg)$/.test(u) || new URL(u).protocol==='https:';}catch{return false;}});
   $('imageLabel').textContent=images.length?`${images.length} IMAGE(S) PRODUIT`:'ILLUSTRATION · AUCUNE IMAGE IMPORTÉE';
   $('productImage').src=images[0] || '/sample-product.svg';
   $('productImage').alt=images.length?listing.title:'Illustration de présentation, pas une photo du produit';
@@ -189,5 +190,6 @@ document.querySelectorAll('[data-connect]').forEach(b=>b.onclick=async()=>{
 document.querySelectorAll('[data-disconnect]').forEach(b=>b.onclick=async()=>{
   try {await api(`oauth/${b.dataset.disconnect}/disconnect`,{});await refreshConfig();notify('Compte déconnecté du serveur.');}catch(e){notify(e.message,true);}
 });
-try {await refreshConfig();await refreshDrafts();if(new URLSearchParams(location.search).has('connected')){page('connections');history.replaceState(null,'','/');notify('Compte connecté. Vérifiez les réglages avant publication.');}}
+const startWorkflow=mountWorkflow({api,notify,openListing:d=>{listing=structuredClone(d);populate();page('studio');$('editorPanel').scrollIntoView({behavior:'smooth'});},collectListing:()=>{collect();return listing;},showPlan});
+try {await refreshConfig();await refreshDrafts();await startWorkflow();if(new URLSearchParams(location.search).has('connected')){page('connections');history.replaceState(null,'','/');notify('Compte connecté. Vérifiez les réglages avant publication.');}}
 catch(e){notify('Connexion au serveur impossible. Rechargez la page. '+e.message,true);}

@@ -1,7 +1,6 @@
 import {InputError} from './listing.js';
 
 export const fields={
-  OPENAI_API_KEY:{label:'Clé API OpenAI',secret:true,group:'IA'},OPENAI_MODEL:{label:'Modèle OpenAI',group:'IA'},
   MARKETPLACE_MODE:{label:'Mode de publication',group:'Publication',options:['demo','live']},
   EBAY_SANDBOX:{label:'Environnement eBay',group:'eBay',options:['true','false']},
   EBAY_CLIENT_ID:{label:'Client ID eBay',secret:true,group:'eBay'},EBAY_CLIENT_SECRET:{label:'Client secret eBay',secret:true,group:'eBay'},EBAY_REDIRECT_URI:{label:'RuName eBay',group:'eBay'},

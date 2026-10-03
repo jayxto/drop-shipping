@@ -1,6 +1,8 @@
 # Drop Studio
 
-Atelier vendeur en français : **lien AliExpress → génération → fiche modifiable → publication Etsy/eBay**. Interface sombre, import par navigateur Chromium, démo sans clé, brouillons persistants, export et historique des envois.
+Atelier vendeur en français : **AliExpress → extension « Envoyer à Drop Studio » → fiche + images → aperçu modifiable → préparation de brouillons Etsy/eBay**. Prompts de style personnalisables, galerie avec régénération/remplacement et mode démo sans clé. Le scraping serveur reste un recours manuel.
+
+**Nouveau : [installation de l'extension et configuration du workflow](docs/EXTENSION-WORKFLOW.md).** Les préparations de brouillons sont locales et exportables ; elles ne publient pas d'annonce.
 
 ## Démarrage
 
@@ -16,18 +18,18 @@ Ouvrir **http://localhost:3000**. Sans clé API, le bouton « Essayer un exemple
 
 ## Configuration dans le site
 
-1. **Réglages → IA** : saisir la clé API OpenAI et un modèle compatible Responses/Structured Outputs accessible à votre compte. L'abonnement ChatGPT ne remplace pas cette configuration API. Sans les deux champs, la génération reste une démo déterministe.
+1. **Environnement serveur uniquement** : renseigner OPENAI_API_KEY, OPENAI_MODEL et OPENAI_IMAGE_MODEL. Dans **Réglages → Votre style d'image**, coller les prompts souhaités. Sans clé, le workflow utilise la démo.
 2. **Réglages → eBay/Etsy** : identifiants de l'application et profils vendeur.
 3. **Connexions** : autoriser le compte vendeur via OAuth.
 4. Tester eBay avec **Sandbox = true**. Choisir **Vente réelle** pour activer les appels API ; eBay reste dans Sandbox tant que son réglage vaut true. Etsy n'a pas de mode Sandbox dans l'application.
 5. Importer un produit, relire, indiquer le stock réel, la catégorie marketplace, la variante vendue et ses images. Vérifier les caractéristiques obligatoires. Confirmer le récapitulatif avant l'envoi.
 
-Les champs secrets restent vides après sauvegarde ; un champ vide conserve sa valeur. Les réglages sauvegardés priment sur les variables d'environnement. Changer les identifiants/environnement d'une marketplace déconnecte le compte. Déconnecter efface les jetons du serveur mais ne révoque pas l'application dans le compte marketplace.
+Les champs secrets restent vides après sauvegarde ; un champ vide conserve sa valeur. Les réglages marketplace sauvegardés priment sur leurs variables d’environnement. OpenAI utilise exclusivement les variables d’environnement ; les anciennes clés OpenAI du coffre sont ignorées. Changer les identifiants/environnement d'une marketplace déconnecte le compte. Déconnecter efface les jetons du serveur mais ne révoque pas l'application dans le compte marketplace.
 
 ## Publication implémentée
 
 - **eBay France, produits neufs, EUR** : création/remplacement de l'inventaire, création d'offre avec stock/emplacement/profils vendeur, puis publication. Les caractéristiques de catégorie se modifient dans la fiche. Les images sont transmises sous forme d'URL HTTPS.
-- **Etsy, produits physiques éligibles** : création de brouillon avec taxonomie, auteur, période, profil de préparation/livraison/retour ; téléchargement borné des images fournisseur JPEG/PNG ; upload multipart et activation après confirmation. Cette version accepte au plus 10 images provenant de `aliexpress-media.com` ou `alicdn.com`.
+- **Etsy, produits physiques éligibles** : création de brouillon avec taxonomie, auteur, période, profil de préparation/livraison/retour ; téléchargement borné des images fournisseur JPEG/PNG ; upload multipart et activation après confirmation. Cette version accepte au plus 10 images provenant de `aliexpress-media.com`, `alicdn.com` ou du stockage PNG/JPEG de ce studio.
 - **Une variante choisie par annonce** : titre/description précisent cette variante. Le prix, les images et le stock doivent correspondre à ce choix. Les groupes multivariantes dans une annonce unique ne sont pas implémentés.
 - **Prévention des doublons** : journal durable avant/après chaque étape. Une répétition d'un envoi déjà publié retourne son résultat sans publier à nouveau. Un refus explicite permet de reprendre les étapes non terminées si la fiche/configuration est inchangée. Une réponse incertaine ou une interruption bloque l'envoi : vérifier manuellement la marketplace avant toute nouvelle annonce. L'interface Historique affiche l'état.
 
@@ -35,7 +37,9 @@ Une modification de fiche déjà publiée n'est pas synchronisée vers la market
 
 **Validation réelle encore nécessaire avec vos comptes** : les adaptateurs ont des tests à transport simulé. Sans identifiants fournis, aucune annonce payante, connexion OAuth réelle ou génération OpenAI réelle n'a été exécutée pendant le développement.
 
-## Import AliExpress
+## Import AliExpress — extension recommandée
+
+Utilisez l’extension livrée dans `extension/` pour le flux automatique. La procédure suivante est uniquement le **secours par URL côté serveur**.
 
 Coller une URL HTTPS de fiche produit sur `aliexpress.com` ou `aliexpress.us`, y compris leurs sous-domaines régionaux et mobiles. Les chemins `/item/<id>` et `/i/<id>`, avec ou sans `.html` et barre finale, sont normalisés en `/item/<id>.html` ; les paramètres de suivi et fragments du lien saisi sont retirés. Les liens courts de partage doivent être ouverts pour copier l'URL de la fiche. Le serveur ouvre un contexte Chromium neuf, attend les données JavaScript, lit JSON-LD/Open Graph ou le DOM. Aucun cookie/profil personnel n'est importé. Deux imports simultanés, lancement borné à 15 s puis chargement à 45 s ; navigateur fermé après chaque requête. Les ressources sont limitées aux domaines marketplace/CDN HTTPS. Service workers, WebSockets et téléchargements sont bloqués.
 
@@ -43,7 +47,7 @@ En mode métadonnées, seules les redirections HTTPS vers une fiche produit de c
 
 AliExpress peut demander un CAPTCHA/une connexion ou bloquer les serveurs : l'application s'arrête explicitement, sans contournement ni données inventées. Le lien réel fourni n'a pas pu être vérifié dans cette session car l'outil de navigation en bloquait l'accès. Une fixture locale JavaScript a validé le lecteur DOM.
 
-Repli : ouvrir « Import via extension ou fichier », coller le texte entier du bouton **Copier pour ChatGPT** de l'extension `ali-ebay-bridge-v2.1`. Les marqueurs `DONNÉES SCRAPÉES :` et `EBAY_LISTING_JSON_START…END` sont reconnus. L'extension existante n'est pas modifiée/installée automatiquement. L'export JSON inclut `selectedImageUrls` pour sa compatibilité.
+Import manuel : ouvrir « Import via extension ou fichier », coller le texte entier du bouton **Copier pour ChatGPT** de l'extension `ali-ebay-bridge-v2.1`. Les marqueurs `DONNÉES SCRAPÉES :` et `EBAY_LISTING_JSON_START…END` sont reconnus. La version 0.3.0 de l'extension est incluse dans `extension/` ; son installation reste manuelle. L'export JSON inclut `selectedImageUrls` pour sa compatibilité.
 
 `ALIEXPRESS_IMPORT_MODE=metadata` active l'ancien mode HTML statique. `SCRAPER_API_URL` active un extracteur de confiance prioritaire : endpoint HTTPS recevant `POST {"url":"https://…"}`, clé optionnelle `SCRAPER_API_KEY` en Bearer, réponse produit au format bridge directement ou sous `product`. Adapter votre fournisseur à ce contrat ; aucun fournisseur particulier n'est inclus.
 
@@ -64,10 +68,10 @@ La fiche demande `who_made`, `when_made`, `is_supply` et confirmation de l'élig
 ## Sécurité et persistance
 
 - Espace personnel **un vendeur**, une instance serveur. Brouillons partagés dans cet espace, pas un SaaS multiclient.
-- Clés et jetons dans `vault.enc`, chiffrés AES-256-GCM. La clé est `VAULT_KEY` (32 octets base64) ou `vault.key` générée localement. Protéger et sauvegarder les deux ; le chiffrement ne protège pas contre un accès complet au serveur et à sa clé.
+- Clés marketplace et jetons OAuth dans `vault.enc`, chiffrés AES-256-GCM. La clé est `VAULT_KEY` (32 octets base64) ou `vault.key` générée localement. Protéger et sauvegarder les deux ; le chiffrement ne protège pas contre un accès complet au serveur et à sa clé.
 - Jetons renouvelés côté serveur ; sessions navigateur temporaires avec cookies HttpOnly/SameSite et Secure sous HTTPS.
 - Contrôles Host/Origin/CSRF, CSP, taille des requêtes et débit par session. Pas de secrets dans le code client, journaux de publication ou réponses de configuration.
-- Répertoire par défaut `.data`, personnalisable via `DATA_DIR`. Contient brouillons, coffre et historique. Écritures sérialisées et remplacement atomique. Sauvegarder régulièrement ; maximum 200 brouillons conservés, historique conservé sans purge automatique.
+- Répertoire par défaut `.data`, personnalisable via `DATA_DIR`. Contient brouillons, imports, modèles image, médias, coffre et historique. Écritures sérialisées et remplacement atomique. Sauvegarder régulièrement ; maximum 200 brouillons conservés, historique conservé sans purge automatique.
 - `.env`, `.data`, dépendances et secrets sont ignorés par Git et Docker.
 - Exposition publique : `APP_PASSWORD` fort obligatoire, HTTPS, reverse proxy conservant Host exact. Ne pas journaliser les URL complètes des callbacks OAuth. Basic derrière TLS convient à cet espace personnel ; utiliser un VPN/proxy d'authentification pour une protection complémentaire.
 - Isoler Chromium dans un conteneur sans accès aux réseaux privés/services internes. Le filtrage des domaines n'est pas un remplacement pour des règles réseau.

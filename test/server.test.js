@@ -46,7 +46,7 @@ test('parcours HTTP complet, persistance, CSRF, isolation statique et simulation
     assert.equal((await request('/api/drafts',{listing:{...listing,title:''}})).status,400);
     const disk=JSON.parse(await readFile(path.join(dir,'drafts.json'),'utf8'));assert.equal(disk[0].title,'Titre modifié');
     assert.equal((await request('/healthz')).status,200);
-    assert.equal((await request('/api/settings',{settings:{OPENAI_API_KEY:'test-secret',MARKETPLACE_MODE:'live',EBAY_CLIENT_ID:'test-id',EBAY_CLIENT_SECRET:'test-ebay-secret',EBAY_LOCATION_KEY:'location',EBAY_PAYMENT_POLICY_ID:'1',EBAY_RETURN_POLICY_ID:'2',EBAY_FULFILLMENT_POLICY_ID:'3'}})).status,200);
+    assert.equal((await request('/api/settings',{settings:{MARKETPLACE_MODE:'live',EBAY_CLIENT_ID:'test-id',EBAY_CLIENT_SECRET:'test-ebay-secret',EBAY_LOCATION_KEY:'location',EBAY_PAYMENT_POLICY_ID:'1',EBAY_RETURN_POLICY_ID:'2',EBAY_FULFILLMENT_POLICY_ID:'3'}})).status,200);
     const settings=await (await request('/api/settings')).json();assert.ok(!JSON.stringify(settings).includes('test-secret'));
     await secretStore(dir).update(d=>{d.tokens.ebay={accessToken:'test-token',expires:Date.now()+3600000};});
     const liveListing={...listing,title:'Vase',images:['https://example.com/photo.jpg'],quantity:2,category:'123',verified:true,selectedVariant:listing.variants[0]};

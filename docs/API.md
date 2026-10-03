@@ -29,3 +29,16 @@ Le jeton de confirmation est lié à la session, au marché, à la fiche exacte 
 Le journal identifie une annonce par marketplace, compte configuré, UUID de fiche et variante. Il enregistre chaque étape avant l'appel, puis les identifiants retournés. Les doubles clics sont exclus dans le processus ; un résultat déjà publié est réutilisé. Une tentative incertaine reste bloquée jusqu'à vérification manuelle. Le coffre et le journal doivent donc rester sur un disque persistant et une seule instance doit y écrire.
 
 Erreurs : 400 format ; 401 authentification ; 403 origine/CSRF ; 409 connexion/confirmation/reprise ; 413 taille ; 422 données ou refus marketplace ; 429 débit ; 502 amont ; 503 navigateur absent ; 504 délai. Un échec de publication peut avoir créé un brouillon ou une offre inactive : consulter l'historique et la marketplace avant toute nouvelle fiche.
+
+
+## Workflow extension et images (v1.1)
+
+- POST /api/import-extension : Bearer DROP_STUDIO_IMPORT_TOKEN (>=32 caractères), Idempotency-Key de 16–100 caractères, JSON {product, productPrompt?, options?}. Réponse 202 {id,status,studioUrl}. Aucune authentification Basic/CSRF sur cette seule route ; le Bearer est obligatoire. L’extension appelle depuis son service worker avec permission d’origine, sans CORS de page web.
+- GET /api/imports et GET /api/imports/:id : imports, étapes, erreur, galerie et fiche.
+- POST /api/imports/:id/retry : {index?, productPrompt?, useCurrentTemplates?}. Sans index : étapes manquantes. index 0–2 : régénérer une seule image.
+- POST /api/imports/:id/replace : {index, base64}. PNG/JPEG/WebP <=8 Mo.
+- GET/POST /api/image-templates : {templates:{global,types:{packshot,lifestyle,detail}}}.
+- POST /api/draft-plan/etsy ou /ebay : {listing}. Préparation et sauvegarde locales, aucune publication distante.
+- GET /media/:uuid.png|jpg|webp|svg : fichier public permanent. SVG uniquement pour les illustrations démo générées par le serveur.
+
+Toutes les routes ci-dessus sauf import-extension et lecture media conservent l’authentification du studio et CSRF pour les mutations. Les clés/modèles OPENAI_* ne peuvent plus être modifiés via /api/settings. Voir EXTENSION-WORKFLOW.md pour le contrat, les limites et la persistance.

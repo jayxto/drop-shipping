@@ -35,11 +35,11 @@ export function parseImport(raw) {
   if (!title) throw new InputError('Le produit doit avoir un titre (sourceTitle ou title).');
   const specifics = Object.fromEntries(Object.entries(d.specifics || {}).filter(([k,v]) => k.length < 70 && typeof v === 'string').slice(0,50).map(([k,v]) => [k,str(v,300)]));
   const currencyText = String(d.prices?.[0] ?? d.price ?? '');
-  const currency = str(d.currency,3).toUpperCase() || (/\$/.test(currencyText) ? 'USD' : /£/.test(currencyText) ? 'GBP' : 'EUR');
+  const currency = str(d.currency || d.price?.currency,3).toUpperCase() || (/\$/.test(currencyText) ? 'USD' : /£/.test(currencyText) ? 'GBP' : 'EUR');
   if (!['EUR','USD','GBP'].includes(currency)) throw new InputError('Devise acceptée : EUR, USD ou GBP.');
-  return { title, description: str(d.description), cost: parsePrice(d.cost ?? d.price ?? d.prices?.[0]), currency,
+  return { title, description: str(d.description), cost: parsePrice(d.cost ?? d.price?.min ?? d.price ?? d.prices?.[0]), currency,
     sourceUrl: safeUrl(d.sourceUrl), specifics,
-    images: [...new Set(list(d.selectedImages ?? d.selectedImageUrls ?? d.images).map(x => safeUrl(typeof x === 'string' ? x : x?.url)).filter(Boolean))].slice(0,20),
+    images: [...new Set(list(d.selectedImages ?? d.selectedImageUrls ?? d.sourceImages ?? d.images).map(x => safeUrl(typeof x === 'string' ? x : x?.url)).filter(Boolean))].slice(0,20),
     materials: list(d.materials).map(x=>str(x,80)).filter(Boolean).slice(0,20),
     variants: list(d.variants).slice(0,80).map(x => typeof x === 'string' ? x : JSON.stringify(x)).map(x=>str(x,500)),
     shipping: list(d.shipping).map(x=>str(x,300)), importedAt: new Date().toISOString() };
@@ -54,7 +54,7 @@ export function pricing(cost, options = {}) {
 export function demoListing(source, options) {
   const p = pricing(source.cost, options);
   const materials = source.materials.length ? source.materials : Object.entries(source.specifics).filter(([k])=>/mat[eé]ria|mati[eè]re|material/i.test(k)).map(([,v])=>v).slice(0,20).map(v=>v.slice(0,80));
-  return { id: randomUUID(), title: source.title.slice(0,140), description: [source.description || source.title, ...Object.entries(source.specifics).map(([k,v])=>`${k} : ${v}`)].join('\n\n'),
+  return { id: randomUUID(), title: source.title.slice(0,140), description: [source.description || source.title, ...Object.entries(source.specifics).map(([k,v])=>`${k} : ${v}`)].join('\n\n').slice(0,10000),
     price: p.price, currency: source.currency, tags: [...new Set(source.title.toLowerCase().match(/[\p{L}\p{N}]{4,20}/gu) || [])].slice(0,13), materials,
     variants: source.variants, images: source.images, specifics: source.specifics, category: '', condition: 'Neuf',
     source, pricing: p, generation: 'demo', updatedAt: new Date().toISOString() };
@@ -68,7 +68,7 @@ export function validateListing(d) {
   for (const [key,max,len] of [['tags',13,20],['materials',20,80],['variants',80,500],['images',20,2048]]) {
     if (!Array.isArray(d[key]) || d[key].length > max || d[key].some(v=>typeof v !== 'string' || v.length > len)) throw new InputError(`Champ ${key} invalide (maximum ${max} éléments, ${len} caractères chacun).`);
   }
-  if (d.images.some(u=>!safeUrl(u))) throw new InputError('Les images doivent utiliser des URL HTTPS.');
+  if (d.images.some(u=>!safeUrl(u) && !/^\/media\/[a-f0-9-]{36}\.(png|jpg|webp|svg)$/.test(u))) throw new InputError('Les images doivent utiliser des URL HTTPS ou les fichiers générés du studio.');
   return { ...d, title: d.title.trim(), description: d.description.trim() };
 }
 export function marketplacePlan(market, listing) {
