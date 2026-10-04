@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="style.css">
+<title>AliExpress → Drop Studio</title>
+</head>
+<body>
+<main>
+  <h1>AliExpress → Drop Studio</h1>
+  <p class="sub">Bridge v3 · Drop Studio</p><details><summary>Connexion Drop Studio</summary><label>Adresse du studio<input id="studioBase" type="url" placeholder="https://votre-studio.onrender.com"></label><label>Jeton d’import (pas une clé OpenAI)<input id="studioToken" type="password" autocomplete="off"></label><button id="saveStudio">Enregistrer la connexion</button><p>Jeton enregistré localement, accessible uniquement à l’extension. Ne le partagez pas.</p></details><button id="sendStudio" class="primary">Envoyer à Drop Studio</button><p id="studioStatus" role="status" aria-live="polite"></p>
+
+  <div class="tabs">
+    <button data-tab="ali" class="tab active">1. AliExpress</button>
+    <button data-tab="ai" class="tab">2. ChatGPT</button>
+    <button data-tab="ebay" class="tab">3. eBay</button>
+  </div>
+
+  <section id="ali" class="panel">
+    <button id="scrape" class="primary">Scraper le produit</button>
+    <p id="status"></p>
+    <div id="aliData" hidden>
+      <label>Titre fournisseur<textarea id="rawTitle" rows="2"></textarea></label>
+      <div class="grid">
+        <label>Prix détecté<input id="rawPrice"></label>
+        <label>Livraison<input id="shipping"></label>
+      </div>
+      <h3>Images <span id="imageCount"></span></h3>
+      <div id="gallery"></div>
+      <div class="actions">
+        <button id="selectAll">Tout sélectionner</button>
+        <button id="selectNone">Tout décocher</button>
+        <button id="downloadSelected">Télécharger sélection</button>
+      </div>
+      <h3>Variantes / caractéristiques</h3>
+      <pre id="rawExtra"></pre>
+      <button id="copyForChatGPT" class="primary">Copier pour ChatGPT</button>
+    </div>
+  </section>
+
+  <section id="ai" class="panel" hidden>
+    <p>Colle ici toute ma réponse structurée.</p>
+    <textarea id="aiInput" rows="14" placeholder='Colle le bloc JSON que ChatGPT te renvoie ici…'></textarea>
+    <button id="importAI" class="primary">Importer la fiche ChatGPT</button>
+    <div id="aiPreview" hidden>
+      <label>Titre eBay<input id="ebayTitle" maxlength="80"></label>
+      <div class="grid">
+        <label>Prix eBay<input id="ebayPrice"></label>
+        <label>État<input id="condition"></label>
+      </div>
+      <label>Description<textarea id="ebayDescription" rows="9"></textarea></label>
+      <label>Catégorie / mots-clés<input id="category"></label>
+      <label>Caractéristiques<textarea id="specifics" rows="6"></textarea></label>
+      <button id="saveAI">Enregistrer la fiche</button>
+    </div>
+  </section>
+
+  <section id="ebay" class="panel" hidden>
+    <p>Ouvre la page de création d'annonce eBay puis clique :</p>
+    <button id="openEbay">Ouvrir eBay France</button>
+    <button id="fillEbay" class="primary">Remplir la fiche eBay</button>
+    <p id="ebayStatus"></p>
+    <p class="note">L'extension ne clique jamais sur « Publier ». Tu gardes la validation finale.</p>
+  </section>
+</main>
+<script src="bridge.js"></script>
+<script src="popup.js"></script>
+<script src="drop-studio.js"></script>
+</body>
+</html>

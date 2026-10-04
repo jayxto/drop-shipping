@@ -1,0 +1,14 @@
+services:
+  studio:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      APP_URL: http://localhost:3000
+      APP_PASSWORD: ${APP_PASSWORD:?Définir APP_PASSWORD avant de lancer Docker}
+    volumes:
+      - studio-data:/data
+    shm_size: 1gb
+    restart: unless-stopped
+volumes:
+  studio-data:

@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "AliExpress → Drop Studio → eBay",
+  "version": "0.3.1",
+  "description": "Envoie les données AliExpress directement à Drop Studio et conserve le bridge eBay.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "downloads",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "https://*.aliexpress.com/*",
+    "https://*.aliexpress.us/*",
+    "https://*.ebay.fr/*",
+    "https://*.ebay.com/*",
+    "https://*.ebay.co.uk/*"
+  ],
+  "action": {
+    "default_title": "AliExpress → Drop Studio",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.aliexpress.com/*",
+        "https://*.aliexpress.us/*"
+      ],
+      "js": [
+        "aliexpress.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*.ebay.fr/*",
+        "https://*.ebay.com/*",
+        "https://*.ebay.co.uk/*"
+      ],
+      "js": [
+        "ebay.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "minimum_chrome_version": "102",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ]
+}

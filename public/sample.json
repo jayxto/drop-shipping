@@ -1,0 +1,11 @@
+{
+  "schema": "ALI_EBAY_BRIDGE_SOURCE_V2_1",
+  "sourceTitle": "Vase en céramique mat — forme organique, 18 cm",
+  "description": "Vase décoratif en céramique à finition mate. Hauteur : 18 cm. Une silhouette arrondie pour accueillir des fleurs séchées ou décorer une étagère.",
+  "prices": ["8,50 €"],
+  "currency": "EUR",
+  "specifics": {"Matériau":"Céramique", "Hauteur":"18 cm", "Finition":"Mate"},
+  "variants": ["Sable", "Ivoire"],
+  "images": [],
+  "shipping": ["À vérifier auprès du fournisseur"]
+}
